@@ -117,9 +117,6 @@ input[type=file]{display:none}
 .lbrow .meta .t{font-size:10px}
 .lbscore{flex:none;font-size:9px;color:var(--gold);white-space:nowrap}
 .lbnote{font-size:8px;line-height:1.8;color:#b9c2b4;margin:8px 2px 0}
-.lbfeed{font-size:9px;line-height:1.9;padding:4px 2px;color:#dfe7da}
-.lbfeed + .lbfeed{border-top:2px solid #ffffff12}
-.lbfeed b{font-weight:normal;color:var(--gold)}
 
 /* playlist covers */
 .hart{position:relative}
@@ -646,7 +643,7 @@ body.full-open{overflow:hidden}
   <div class="panel lbpanel">
     <div class="lbtitle"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-trophy"/></svg>Leaderboard</div>
     <div class="row seg" id="lbTabs" role="tablist">
-      <button data-lb="firsts" role="tab">Firsts</button><button data-lb="songs" role="tab">Top songs</button><button data-lb="people" role="tab">Listeners</button>
+      <button data-lb="time" role="tab">Time listened</button><button data-lb="songs" role="tab">Top songs</button><button data-lb="people" role="tab">Listeners</button>
     </div>
     <div id="lbBody"></div>
     <div class="row"><button class="go" id="lbClose">Done</button></div>
@@ -821,8 +818,13 @@ create table if not exists public.listens (
   track_id text not null,
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   listener text not null,
+  seconds integer not null default 0,
+  counted boolean not null default true,
   created_at timestamptz not null default now()
 );
+-- already created the table before "time listened"? run this too:
+alter table public.listens add column if not exists seconds integer not null default 0,
+  add column if not exists counted boolean not null default true;
 alter table public.listens enable row level security;
 create policy "listens read" on public.listens for select to authenticated using (true);
 create policy "listens insert own" on public.listens for insert to authenticated with check (auth.uid() = user_id);
@@ -1064,7 +1066,7 @@ $("signup").onclick = async () => {
   const { error } = await sb.auth.signUp({ email: $("email").value.trim(), password: $("pass").value });
   authMsg(error ? error.message : "Account created. Log in now.");
 };
-$("logout").onclick = () => { toggleMenu(false); sb.auth.signOut(); };
+$("logout").onclick = async () => { toggleMenu(false); await flushListen(); sb.auth.signOut(); };
 
 /* ---------- display name ---------- */
 const myName = () => me.user_metadata?.display_name || me.email.split("@")[0];
@@ -1550,7 +1552,7 @@ function playTrack(t, q, viaQueue) {
   if (q) { queueOrig = [...q]; queue = shuffleOn ? shuffled(q, t.id) : [...q]; }
   if (!viaQueue) ctxId = t.id;
   nowId = t.id;
-  listened = 0; lastT = 0; counted = false;
+  newSession();
   audio.src = urlFor(t);
   audio.play().catch(() => {});
   setNow(); updateQBtn(); setMeta(t);
@@ -1639,46 +1641,79 @@ async function countListen(id) {
   const { data, error } = await sb.rpc("bump_play", { tid: String(id) });
   if (error) { t.plays--; paintPlays(t); console.warn("bump_play failed (run the SQL in the script comment):", error.message); }
   else if (typeof data === "number") { t.plays = data; paintPlays(t); }
-  // leaderboard history (who + when); quietly skipped if the listens table isn't set up yet
-  if (!lb.noTable) {
-    const r = await sb.from("listens").insert({ track_id: String(id), user_id: me.id, listener: myName() });
-    if (r.error) { if (/listens|schema cache|does not exist/i.test(r.error.message)) lb.noTable = true; console.warn("listen history not saved:", r.error.message); }
-    else lb.at = 0; // refresh next time the leaderboard opens
-  }
+  // leaderboard: this session now counts as a listen
+  sessCounted = true; flushListen();
 }
 
+/* ---------- listening sessions (for "time listened") ---------- */
+let sessTrack = null, pendingSec = 0, sessCounted = false, sessCountSent = false;
+function newSession() {
+  flushListen();
+  sessTrack = nowId; pendingSec = 0; sessCounted = false; sessCountSent = false;
+  listened = 0; lastT = 0; counted = false;
+}
+// save the real seconds listened since the last save (and whether this play counted as a listen)
+async function flushListen() {
+  if (!me || lb.noTable || sessTrack == null) return;
+  const sec = Math.round(pendingSec), c = sessCounted && !sessCountSent;
+  if (sec < 1 && !c) return;
+  pendingSec = 0; if (c) sessCountSent = true;
+  const base = { track_id: String(sessTrack), user_id: me.id, listener: myName() };
+  if (lb.oldSchema) { if (c) sb.from("listens").insert(base).then(() => {}); return; }
+  const r = await sb.from("listens").insert({ ...base, seconds: sec, counted: c });
+  if (!r.error) { lb.at = 0; return; }
+  const m = r.error.message || "";
+  if (/seconds|counted/i.test(m)) { lb.oldSchema = true; if (c) await sb.from("listens").insert(base); }
+  else if (/listens|schema cache|does not exist/i.test(m)) lb.noTable = true;
+  console.warn("listen history not saved:", m);
+}
+document.addEventListener("visibilitychange", () => { if (document.hidden) flushListen(); });
+addEventListener("pagehide", () => flushListen());
+
 /* ---------- leaderboard (Settings > Fun) ---------- */
-const lb = { tab: "firsts", rows: null, at: 0, noTable: false, err: "" };
+const lb = { tab: "time", rows: null, at: 0, noTable: false, oldSchema: false, err: "" };
+const COLS_ERR = /seconds|counted/i, TABLE_ERR = /listens|schema cache|does not exist/i;
 async function lbLoad(force) {
   if (!force && lb.rows && Date.now() - lb.at < 60000) return;
-  const { data, error } = await sb.from("listens").select("track_id,user_id,listener,created_at").order("created_at", { ascending: true }).limit(20000);
-  if (error) { lb.rows = []; lb.err = error.message; lb.noTable = /listens|schema cache|does not exist/i.test(error.message); }
+  let { data, error } = await sb.from("listens").select("track_id,user_id,listener,created_at,seconds,counted").order("created_at", { ascending: true }).limit(50000);
+  if (error && COLS_ERR.test(error.message)) {
+    lb.oldSchema = true;
+    ({ data, error } = await sb.from("listens").select("track_id,user_id,listener,created_at").order("created_at", { ascending: true }).limit(50000));
+  }
+  if (error) { lb.rows = []; lb.err = error.message; lb.noTable = TABLE_ERR.test(error.message); }
   else { lb.rows = data || []; lb.err = ""; lb.noTable = false; }
   lb.at = Date.now();
 }
 function lbStats() {
-  const byId = new Map(all.map((t) => [String(t.id), t]));
-  const names = new Map(), firstOf = new Map(), perUser = new Map();
+  const ids = new Set(all.map((t) => String(t.id)));
+  const names = new Map(), people = new Map();
   for (const r of lb.rows) {
-    names.set(r.user_id, r.listener || "Player");                     // latest name wins
-    const t = byId.get(String(r.track_id)); if (!t) continue;          // song was deleted
-    const u = perUser.get(r.user_id) || { n: 0, songs: new Map() };
-    u.n++; u.songs.set(t.id, (u.songs.get(t.id) || 0) + 1); perUser.set(r.user_id, u);
-    if (!firstOf.has(t.id) && r.user_id !== t.user_id) firstOf.set(t.id, r); // uploaders can't claim their own songs
+    names.set(r.user_id, r.listener || "Player"); // latest name wins
+    if (!ids.has(String(r.track_id))) continue; // song was deleted
+    const u = people.get(r.user_id) || { sec: 0, n: 0, secBy: new Map(), nBy: new Map() };
+    const sec = +r.seconds || 0, tid = String(r.track_id);
+    u.sec += sec; u.secBy.set(tid, (u.secBy.get(tid) || 0) + sec);
+    if (r.counted !== false) { u.n++; u.nBy.set(tid, (u.nBy.get(tid) || 0) + 1); }
+    people.set(r.user_id, u);
   }
-  const firsts = new Map();
-  for (const r of firstOf.values()) firsts.set(r.user_id, (firsts.get(r.user_id) || 0) + 1);
-  return { byId, names, firstOf, perUser, firsts };
+  return { names, people };
+}
+// 3h 12m / 14m / 45s
+function fmtLong(sec) {
+  sec = Math.round(sec || 0);
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+  return h ? `${h}h ${m}m` : m ? `${m}m` : `${sec}s`;
 }
 const lbRank = (i) => `<span class="lbrank r${i + 1}">${i < 3 ? ["1st", "2nd", "3rd"][i] : i + 1}</span>`;
 const lbSetup = () => `<div class="empty">This part of the leaderboard starts once the <b>listens</b> table exists. Run the "LEADERBOARD" SQL from the top of the script in Supabase &gt; SQL Editor. Top songs already works.</div>`;
+const favOf = (m) => { let best = null, v = 0; for (const [k, n] of m) if (n > v) { v = n; best = k; } return best && all.find((t) => String(t.id) === best); };
 function renderLb() {
   document.querySelectorAll("#lbTabs button").forEach((b) => { const on = b.dataset.lb === lb.tab; b.classList.toggle("go", on); b.setAttribute("aria-selected", String(on)); });
   const box = $("lbBody");
   if (lb.tab === "songs") {
     lb.top = [...all].filter((t) => (t.plays || 0) > 0).sort((a, b) => (b.plays || 0) - (a.plays || 0)).slice(0, 15);
     box.innerHTML = lb.top.length
-      ? lb.top.map((t, i) => `<div class="lbrow" data-lbplay="${i}" role="button" tabindex="0" title="Play">${lbRank(i)}${thumbHTML(t)}<span class="meta"><span class="t">${esc(t.title)}</span><span class="by">${esc(artistOf(t))}</span></span><span class="lbscore">\u25B6 ${t.plays}</span></div>`).join("") + '<div class="lbnote">All-time listens. Tap a song to play it.</div>'
+      ? lb.top.map((t, i) => `<div class="lbrow" data-lbplay="${i}" role="button" tabindex="0" title="Play">${lbRank(i)}${thumbHTML(t)}<span class="meta"><span class="t">${esc(t.title)}</span><span class="by">${esc(artistOf(t))}</span></span><span class="lbscore">▶ ${t.plays}</span></div>`).join("") + '<div class="lbnote">All-time listens. Tap a song to play it.</div>'
       : '<div class="empty">No listens yet. Play something for 30 seconds!</div>';
     return;
   }
@@ -1687,23 +1722,20 @@ function renderLb() {
   if (lb.err) { box.innerHTML = `<div class="empty">${esc(lb.err)}</div>`; return; }
   const st = lbStats();
   const nameOf = (uid) => uid === me.id ? myName() : st.names.get(uid) || "Player";
-  if (lb.tab === "firsts") {
-    const board = [...st.firsts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15);
-    const feed = [...st.firstOf.entries()].sort((a, b) => String(b[1].created_at).localeCompare(String(a[1].created_at))).slice(0, 8);
-    box.innerHTML = (board.length
-      ? board.map(([uid, n], i) => `<div class="lbrow${uid === me.id ? " me" : ""}">${lbRank(i)}<span class="meta"><span class="t">${esc(nameOf(uid))}${uid === me.id ? " (you)" : ""}</span></span><span class="lbscore">${n} first${n === 1 ? "" : "s"}</span></div>`).join("")
-      : '<div class="empty">No firsts yet. Be the first to hear a friend\'s new upload!</div>') +
-      (feed.length ? '<h3>Latest firsts</h3>' + feed.map(([tid, r]) => { const t = st.byId.get(String(tid)); return `<div class="lbfeed"><b>${esc(nameOf(r.user_id))}</b> heard \u201C${esc(t.title)}\u201D first \u00B7 ${esc(ago(r.created_at))}</div>`; }).join("") : "") +
-      '<div class="lbnote">A "first" goes to whoever listens to a song before anyone else (30+ seconds). Uploaders don\'t count for their own songs.</div>';
+  const row = (uid, i, sub, score) => `<div class="lbrow${uid === me.id ? " me" : ""}">${lbRank(i)}<span class="meta"><span class="t">${esc(nameOf(uid))}${uid === me.id ? " (you)" : ""}</span><span class="by">${sub}</span></span><span class="lbscore">${score}</span></div>`;
+  if (lb.tab === "time") {
+    if (lb.oldSchema) { box.innerHTML = '<div class="empty">Time listened needs two new columns. In Supabase &gt; SQL Editor run:<br><br>alter table public.listens add column if not exists seconds integer not null default 0, add column if not exists counted boolean not null default true;</div>'; return; }
+    const board = [...st.people.entries()].filter(([, u]) => u.sec > 0).sort((a, b) => b[1].sec - a[1].sec).slice(0, 15);
+    box.innerHTML = board.length
+      ? board.map(([uid, u], i) => { const f = favOf(u.secBy); return row(uid, i, "Most time on: " + esc(f ? f.title : "?"), fmtLong(u.sec)); }).join("") +
+        '<div class="lbnote">Real listening time: skipping ahead doesn\'t count, pausing stops the clock.</div>'
+      : '<div class="empty">No listening time yet. Press play!</div>';
     return;
   }
-  const people = [...st.perUser.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 15);
-  box.innerHTML = people.length
-    ? people.map(([uid, u], i) => {
-        const [favId] = [...u.songs.entries()].sort((a, b) => b[1] - a[1])[0];
-        const fav = all.find((t) => t.id === favId);
-        return `<div class="lbrow${uid === me.id ? " me" : ""}">${lbRank(i)}<span class="meta"><span class="t">${esc(nameOf(uid))}${uid === me.id ? " (you)" : ""}</span><span class="by">Most played: ${esc(fav ? fav.title : "?")}</span></span><span class="lbscore">${u.n} listen${u.n === 1 ? "" : "s"}</span></div>`;
-      }).join("") + '<div class="lbnote">Counted since the leaderboard was switched on.</div>'
+  const board = [...st.people.entries()].filter(([, u]) => u.n > 0).sort((a, b) => b[1].n - a[1].n).slice(0, 15);
+  box.innerHTML = board.length
+    ? board.map(([uid, u], i) => { const f = favOf(u.nBy); return row(uid, i, "Most played: " + esc(f ? f.title : "?"), `${u.n} listen${u.n === 1 ? "" : "s"}`); }).join("") +
+      '<div class="lbnote">A listen counts after about 30 seconds of real playback.</div>'
     : '<div class="empty">No listens recorded yet.</div>';
 }
 async function openLb() {
@@ -1775,13 +1807,13 @@ audio.onpause = () => {
 audio.onended = () => {
   if (jam.role === "guest") return; // the host decides what's next
   if (repeatMode === "one" && nowId != null) { // play the same song again (counts as another listen)
-    listened = 0; lastT = 0; counted = false;
+    newSession();
     audio.currentTime = 0; audio.play().catch(() => {}); return;
   }
   if (!advance() && "mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
 };
 audio.onloadedmetadata = syncPos;
-audio.onseeked = () => { syncPos(); jamPush(); };
+audio.onseeked = () => { lastT = audio.currentTime; syncPos(); jamPush(); };
 
 const fmt = (s) => (isFinite(s) ? Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0") : "0:00");
 audio.ontimeupdate = () => {
@@ -1797,8 +1829,9 @@ audio.ontimeupdate = () => {
   $("tDur").textContent = fmt(audio.duration);
   // listen counter: count real playback time, so skipping around can't fake it
   const ct = audio.currentTime, dt = ct - lastT;
-  if (dt > 0 && dt < 1.5 && !audio.paused) listened += dt;
+  if (dt > 0 && dt < 4 && !audio.paused) { listened += dt; pendingSec += dt; }
   lastT = ct;
+  if (pendingSec >= 60) flushListen(); // save long listens as they go
   if (!counted && nowId != null) {
     const need = isFinite(audio.duration) && audio.duration > 0 ? Math.min(30, audio.duration * 0.5) : 30;
     if (listened >= need) { counted = true; countListen(nowId); }
@@ -2068,7 +2101,7 @@ function jamApply(s) {
   const changed = sig !== jam.sig; jam.sig = sig;
   if (!t) { if (!audio.paused) audio.pause(); if (nowId != null) { nowId = null; setNow(); } if (changed) { updateQBtn(); if (isOpen("qModal")) renderQueue(); } return; }
   if (nowId !== t.id) {
-    nowId = t.id; listened = 0; lastT = 0; counted = false;
+    nowId = t.id; newSession();
     audio.src = urlFor(t);
     audio.addEventListener("loadedmetadata", () => {
       if (jam.role !== "guest" || nowId !== t.id) return;
