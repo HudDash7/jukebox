@@ -26,7 +26,7 @@ padding:0 12px 0;overscroll-behavior-y:none}
 html{-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%}
 button,.btn,.track{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 /* clearance so the fixed player never covers the last rows or buttons */
-.wrap{max-width:640px;margin:0 auto;padding-bottom:calc(var(--ph) + 40px)}
+.wrap{max-width:640px;margin:0 auto;padding-bottom:calc(var(--ph) + var(--tbh, 0px) + 40px)}
 
 /* ---------- header: settings (left) / title / search ---------- */
 header{background:var(--grass);border-bottom:8px solid var(--dirt);box-shadow:inset 0 -4px 0 var(--grass-d);margin:0 -12px 16px;padding:calc(env(safe-area-inset-top) + 12px) 12px 12px;position:relative;z-index:8}
@@ -240,7 +240,7 @@ input[type=file]{display:none}
 .rbtn.rdel:hover{color:#ff6b5b}
 .hbtn svg{width:22px;height:22px}
 
-.overlay{position:fixed;inset:0;background:#000b;display:block;overflow:auto;padding:8vh 12px calc(env(safe-area-inset-bottom) + var(--ph) + 20px);z-index:10}
+.overlay{position:fixed;inset:0;background:#000b;display:block;overflow:auto;padding:8vh 12px calc(env(safe-area-inset-bottom) + var(--ph) + var(--tbh, 0px) + 20px);z-index:10}
 .overlay .panel{width:100%;max-width:460px;margin:0 auto}
 #lyText{white-space:pre-wrap;word-break:break-word;font:9px/2 "Press Start 2P",ui-monospace,monospace;background:#000a;padding:10px;margin:8px 0;max-height:48vh;overflow:auto;color:#fff}
 
@@ -287,7 +287,7 @@ input[type=file]{display:none}
 .jamcode{font-size:24px;letter-spacing:6px;color:var(--gold);text-align:center;background:#000a;padding:14px 8px;margin:8px 0;text-shadow:3px 3px 0 #000}
 #jamPeople .person{padding:4px 0}
 #jamCode{text-transform:uppercase;letter-spacing:4px}
-#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--ph) + 12px);z-index:15;max-width:min(90vw,520px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#000d;border:4px solid var(--grass);padding:8px 12px;color:#fff;text-shadow:2px 2px 0 #000;pointer-events:none}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--ph) + var(--tbh, 0px) + 12px);z-index:15;max-width:min(90vw,520px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:#000d;border:4px solid var(--grass);padding:8px 12px;color:#fff;text-shadow:2px 2px 0 #000;pointer-events:none}
 
 .hide{display:none!important}
 .invis{visibility:hidden}
@@ -303,24 +303,83 @@ input[type=file]{display:none}
 
 /* ---------- phones: slim mini player (tap it to open the full Now Playing view) ---------- */
 @media (max-width:1023px){
-  #player{padding:6px 8px calc(env(safe-area-inset-bottom) + 6px);border-top-width:6px}
-  #player .in{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"now ctl" "bar bar";align-items:center;column-gap:8px}
-  #mini{grid-area:now;margin:0;min-width:0;cursor:pointer}
+  #player{left:8px;right:8px;bottom:calc(var(--tbh, 0px) + 6px);padding:8px 8px 0;border:0;border-radius:10px;overflow:hidden;background:#2c4a20;box-shadow:0 6px 16px #000a}
+  #player .in{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"now ctl" "bar bar";align-items:center;column-gap:4px}
+  #mini{grid-area:now;margin:0;min-width:0;cursor:pointer;flex:1}
   .pleft{grid-area:now;display:flex;min-width:0}
   .pcenter,.pctl,.prog{display:contents}
   #play{grid-area:ctl;margin:0}
-  .pctl > :not(#play),#pAdd,#tCur,#tDur,.pright{display:none!important}
-  #play{padding:10px 12px}
+  .pctl > :not(#play),#tCur,#tDur,.pright{display:none!important}
+  #play{padding:8px;background:transparent;border:0;outline:0;color:#fff;text-shadow:none}
+  #pAdd svg{width:20px;height:20px}
   #play #playTxt{display:none}
-  #play svg{width:18px;height:18px}
-  #bar{grid-area:bar;height:8px;margin:6px 0 0;border-width:2px;outline:0;pointer-events:none}
+  #play svg{width:22px;height:22px}
+  #bar{grid-area:bar;height:3px;margin:8px -8px 0;border:0;outline:0;border-radius:0;background:#ffffff33;pointer-events:none}
+  #fill{background:#fff}
   #bar::after,#lvl{display:none}
   #now{margin:0}
   #nowBy{font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  #art{width:44px;height:44px}
-  #art .disc,#art .disc svg,#art .cover{width:44px;height:44px}
+  #art{width:42px;height:42px}
+  #art .disc,#art .disc svg,#art .cover{width:42px;height:42px}
+  #now{color:#fff;font-size:10px}
 }
 #nowBy:empty{display:none}
+
+/* ---------- phones: Spotify-style app shell ---------- */
+.avatar,.ptitle,.mico,#tabbar{display:none}
+#tabbar{position:fixed;left:0;right:0;bottom:0;z-index:6;background:linear-gradient(180deg,#1d1f1dcc,#121312 40%);padding:6px 4px calc(env(safe-area-inset-bottom) + 6px)}
+#tabbar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;background:transparent;border:0;outline:0;margin:0;padding:6px 2px;color:#b9c2b4;font-size:8px;text-shadow:none}
+#tabbar button:hover{background:transparent}
+#tabbar button:active{transform:none}
+#tabbar button svg{width:22px;height:22px}
+#tabbar button.on{color:#fff}
+#tabbar button.on svg{color:var(--gold)}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border-radius:999px!important;background:#2a2e2a;border:0;outline:0;padding:9px 14px;font-size:9px;text-shadow:none;margin:0}
+.chip:hover{background:#363b36}
+.chip.on{background:var(--grass);color:#fff}
+.lsort{display:flex;align-items:center;justify-content:space-between;margin:2px 0 6px}
+.lsortbtn{display:inline-flex;align-items:center;gap:8px;background:transparent;border:0;outline:0;padding:6px 0;margin:0;font-size:9px;text-shadow:none;color:#dfe7da}
+.lsortbtn:hover{background:transparent}.lsortbtn svg{width:14px;height:14px}
+.libtile{display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--grass),#2b4a1e);width:100%;height:100%;color:#fff}
+.libtile svg{width:45%;height:45%}
+.newtile{display:flex;align-items:center;justify-content:center;background:#2a2e2a;width:100%;height:100%;color:#dfe7da}
+.newtile svg{width:40%;height:40%}
+.prow .lcov{flex:none;width:40px;height:40px;display:block;border-radius:var(--r-sm, 4px);overflow:hidden}
+.sempty{padding:18px 4px 4px;text-align:center}
+#createSheet{padding:0;display:flex;align-items:flex-end;justify-content:center}
+#createSheet.hide{display:none!important}
+.sheet{width:100%;max-width:520px;background:#232823;border-radius:16px 16px 0 0;padding:10px 14px calc(env(safe-area-inset-bottom) + 18px);box-shadow:0 -8px 24px #000a}
+.sheetgrab{width:44px;height:5px;border-radius:3px;background:#ffffff40;margin:2px auto 12px}
+.sheetopt{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:transparent;border:0;outline:0;margin:0;padding:10px 4px;text-shadow:none;border-radius:10px}
+.sheetopt:hover{background:#ffffff0d}
+.sheetopt:active{transform:none}
+.soic{flex:none;width:48px;height:48px;border-radius:50%;background:#3a403a;display:flex;align-items:center;justify-content:center;color:#fff}
+.soic svg{width:20px;height:20px}
+.sotx{display:flex;flex-direction:column;gap:6px;min-width:0}
+.sotx b{font-weight:normal;font-size:11px;color:#fff}
+#csNew{padding:4px 4px 10px 66px}
+@media (max-width:1023px){
+  header{background:var(--dark);border-bottom:0;box-shadow:none;margin:0 -12px 6px;padding:calc(env(safe-area-inset-top) + 10px) 12px 8px}
+  .hdr{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .brand,.hdr > .spacer{display:none}
+  .ptitle{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  h1{flex:1;min-width:0;text-align:left;font-size:17px;text-shadow:2px 2px 0 #000;margin-left:6px}
+  .mico{display:inline-flex}
+  .mico svg{width:22px;height:22px}
+  #gear{width:40px;height:40px;padding:0;border-radius:50%!important;border:0;outline:0;background:var(--grass);display:flex;align-items:center;justify-content:center}
+  #gear svg{display:none}
+  .avatar{display:block;font-size:14px;line-height:1;color:#fff;text-shadow:2px 2px 0 #0008}
+  #searchBox{display:none;flex-basis:100%;order:9;margin-top:6px}
+  body.m-search #searchBox{display:block}
+  #tabs,.deskonly{display:none!important}
+  #tabbar{display:flex}
+  .prow{grid-template-columns:60px minmax(0,1fr) auto;min-height:72px;padding:6px 2px}
+  .prow .lcov,.prow > .cover,.prow > .disc,.prow > .disc svg{width:60px;height:60px}
+  .prow .tact{display:none}
+  .prow .t{font-size:12px}
+}
 
 /* ---------- full-screen Now Playing (phones) ---------- */
 #full{position:fixed;inset:0;z-index:9;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
@@ -475,6 +534,11 @@ button,.btn,input[type=text],input[type=email],input[type=password],input[type=s
   <symbol id="ic-pen" viewBox="0 0 8 8" fill="currentColor"><rect x="6" y="0" width="2" height="1"/><rect x="5" y="1" width="3" height="1"/><rect x="4" y="2" width="3" height="1"/><rect x="3" y="3" width="3" height="1"/><rect x="2" y="4" width="3" height="1"/><rect x="1" y="5" width="3" height="1"/><rect x="0" y="6" width="3" height="1"/><rect x="0" y="7" width="1" height="1"/><rect x="6" y="2" width="1" height="1" fill="#0000"/></symbol>
   <symbol id="ic-x" viewBox="0 0 8 8" fill="currentColor"><rect x="1" y="1" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="5" y="5" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="6" y="6" width="1" height="1"/><rect x="1" y="6" width="1" height="1"/></symbol>
   <symbol id="ic-trophy" viewBox="0 0 8 8" fill="currentColor"><rect x="1" y="0" width="6" height="1"/><rect x="1" y="1" width="6" height="2"/><rect x="2" y="3" width="4" height="1"/><rect x="0" y="1" width="1" height="2"/><rect x="7" y="1" width="1" height="2"/><rect x="3" y="4" width="2" height="2"/><rect x="2" y="6" width="4" height="1"/><rect x="1" y="7" width="6" height="1"/></symbol>
+  <symbol id="ic-home" viewBox="0 0 8 8" fill="currentColor"><rect x="3" y="0" width="2" height="1"/><rect x="2" y="1" width="4" height="1"/><rect x="1" y="2" width="6" height="1"/><rect x="0" y="3" width="8" height="1"/><rect x="1" y="4" width="1" height="4"/><rect x="6" y="4" width="1" height="4"/><rect x="2" y="7" width="4" height="1"/><rect x="3" y="5" width="2" height="2"/></symbol>
+  <symbol id="ic-search" viewBox="0 0 8 8" fill="currentColor"><rect x="1" y="0" width="4" height="1"/><rect x="0" y="1" width="1" height="4"/><rect x="5" y="1" width="1" height="4"/><rect x="1" y="5" width="4" height="1"/><rect x="5" y="5" width="1" height="1"/><rect x="6" y="6" width="1" height="1"/><rect x="7" y="7" width="1" height="1"/></symbol>
+  <symbol id="ic-lib" viewBox="0 0 8 8" fill="currentColor"><rect x="0" y="0" width="1" height="8"/><rect x="2" y="0" width="1" height="8"/><rect x="4" y="0" width="2" height="1"/><rect x="4" y="1" width="1" height="7"/><rect x="5" y="1" width="1" height="1"/><rect x="6" y="2" width="1" height="6"/><rect x="5" y="7" width="1" height="1"/></symbol>
+  <symbol id="ic-sort" viewBox="0 0 8 8" fill="currentColor"><rect x="1" y="0" width="1" height="7"/><rect x="0" y="1" width="1" height="1"/><rect x="2" y="1" width="1" height="1"/><rect x="6" y="1" width="1" height="7"/><rect x="5" y="6" width="1" height="1"/><rect x="7" y="6" width="1" height="1"/></symbol>
+  <symbol id="ic-note" viewBox="0 0 8 8" fill="currentColor"><rect x="3" y="0" width="4" height="1"/><rect x="3" y="1" width="1" height="5"/><rect x="6" y="1" width="1" height="4"/><rect x="1" y="5" width="3" height="2"/><rect x="4" y="4" width="3" height="2"/></symbol>
   <symbol id="ic-gear" viewBox="0 0 8 8" fill="#fff">
     <rect x="3" y="0" width="2" height="1"/><rect x="1" y="1" width="6" height="1"/>
     <rect x="1" y="2" width="2" height="1"/><rect x="5" y="2" width="2" height="1"/>
@@ -489,6 +553,7 @@ button,.btn,input[type=text],input[type=email],input[type=password],input[type=s
     <div class="menuwrap invis" id="menuWrap">
       <button class="ico" id="gear" aria-label="Settings" title="Settings" aria-haspopup="true" aria-expanded="false" aria-controls="menu">
         <svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-gear"/></svg>
+        <span class="avatar" id="avatar" aria-hidden="true">?</span>
       </button>
       <!-- Settings dropdown -->
       <div id="menu" class="menu panel hide">
@@ -517,8 +582,10 @@ button,.btn,input[type=text],input[type=email],input[type=password],input[type=s
         <button id="logout">Log out</button>
       </div>
     </div>
-    <h1>BUDSBOX</h1>
+    <h1><span class="brand">BUDSBOX</span><span class="ptitle" id="pTitle">Budsbox</span></h1>
     <span class="spacer"></span>
+    <button class="ico pbtn mico" id="mSearchBtn" aria-label="Search" title="Search"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-search"/></svg></button>
+    <button class="ico pbtn mico" id="mCreateBtn" aria-label="Create" title="Create"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-plus"/></svg></button>
     <div id="searchBox" class="hide">
       <input id="q" type="search" placeholder="Search songs" aria-label="Search songs" autocomplete="off" enterkeyhint="search">
     </div>
@@ -783,6 +850,25 @@ button,.btn,input[type=text],input[type=email],input[type=password],input[type=s
   <div class="fhint sub">Swipe down or tap the arrow to keep browsing</div>
 </section>
 
+<!-- phones: bottom tab bar (like Spotify) -->
+<nav id="tabbar" class="hide" aria-label="Main">
+  <button data-tab="home"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-home"/></svg><span>Home</span></button>
+  <button data-tab="search"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-search"/></svg><span>Search</span></button>
+  <button data-tab="library"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-lib"/></svg><span>Your Library</span></button>
+  <button data-tab="create"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-plus"/></svg><span>Create</span></button>
+</nav>
+
+<!-- Create sheet: new playlist / upload / jam -->
+<div id="createSheet" class="overlay hide">
+  <div class="sheet" role="dialog" aria-label="Create">
+    <div class="sheetgrab"></div>
+    <button class="sheetopt" id="csPlaylist"><span class="soic"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-note"/></svg></span><span class="sotx"><b>Playlist</b><span class="sub">Build a playlist with songs</span></span></button>
+    <div id="csNew" class="hide"><div class="row" style="flex-wrap:nowrap"><input id="csName" class="grow" type="text" maxlength="60" placeholder="Playlist name" aria-label="Playlist name" style="margin:0"><button class="go" id="csMake">Create</button></div></div>
+    <label class="sheetopt btn" for="file" id="csUpload"><span class="soic"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-plus"/></svg></span><span class="sotx"><b>Upload music</b><span class="sub">Add songs from this device</span></span></label>
+    <button class="sheetopt" id="csJam"><span class="soic"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-jam"/></svg></span><span class="sotx"><b>Jam</b><span class="sub">Listen together with friends</span></span></button>
+  </div>
+</div>
+
 <div id="toast" class="hide" role="status" aria-live="polite"></div>
 <audio id="audio" preload="auto" playsinline></audio>
 
@@ -879,8 +965,10 @@ function syncSizes() {
   const r = document.documentElement.style;
   r.setProperty("--ph", ($("player").classList.contains("hide") ? 0 : $("player").offsetHeight) + "px");
   r.setProperty("--hh", $("top").offsetHeight + "px");
+  const tb = $("tabbar");
+  r.setProperty("--tbh", (tb && !tb.classList.contains("hide") ? tb.offsetHeight : 0) + "px");
 }
-if ("ResizeObserver" in window) { const ro = new ResizeObserver(syncSizes); ro.observe($("player")); ro.observe($("top")); }
+if ("ResizeObserver" in window) { const ro = new ResizeObserver(syncSizes); ro.observe($("player")); ro.observe($("top")); ro.observe($("tabbar")); }
 addEventListener("resize", syncSizes);
 
 /* ---------- Minecraft SFX (synthesized, no audio files) ---------- */
@@ -1063,6 +1151,7 @@ function setUser(u) {
 function render() {
   $("auth").classList.toggle("hide", !!me);
   $("app").classList.toggle("hide", !me);
+  $("tabbar").classList.toggle("hide", !me);
   $("player").classList.toggle("hide", !me);
   $("searchBox").classList.toggle("hide", !me);
   $("menuWrap").classList.toggle("invis", !me);
@@ -1090,7 +1179,7 @@ $("logout").onclick = async () => { toggleMenu(false); await flushListen(); sb.a
 /* ---------- display name ---------- */
 const myName = () => me.user_metadata?.display_name || me.email.split("@")[0];
 const myLists = () => lists.filter((p) => p.user_id === me.id);
-function paintWho() { $("who").textContent = myName(); }
+function paintWho() { $("who").textContent = myName(); $("avatar").textContent = (myName().trim()[0] || "?").toUpperCase(); }
 
 $("editName").onclick = () => {
   $("nameIn").value = myName();
@@ -1180,8 +1269,8 @@ function plArtHTML(p) {
 }
 function plRow(p) {
   const n = p.track_ids.length, mine = p.user_id === me.id;
-  return `<div class="track trow prow" tabindex="0" data-pl="${esc(p.id)}">${plArtHTML(p)}
-    <span class="meta"><span class="t">${esc(p.name)}</span><span class="by">Playlist · ${n} song${n === 1 ? "" : "s"}${mine ? "" : " · by " + esc(p.owner)}</span></span>
+  return `<div class="track trow prow" tabindex="0" data-pl="${esc(p.id)}"><span class="lcov">${plArtHTML(p)}</span>
+    <span class="meta"><span class="t">${esc(p.name)}</span><span class="by">Playlist · ${esc(p.owner)} · ${n} song${n === 1 ? "" : "s"}</span></span>
     <span class="tact">${mine ? `<button class="rbtn rdel" data-dpl="${esc(p.id)}" aria-label="Delete playlist" title="Delete playlist">${ICON("ic-x")}</button>` : ""}</span></div>`;
 }
 
@@ -1231,7 +1320,11 @@ function drawLists() {
   const plays = (list) => list.reduce((n, t) => n + (t.plays || 0), 0);
   let html = "";
 
-  if (query) {
+  if (!query && mSearch) {
+    shown = [...all].sort((a, b) => (b.plays || 0) - (a.plays || 0)).slice(0, 10);
+    html = '<div class="sempty sub">Find songs, artists and playlists</div>' +
+      (shown.length ? '<h2 class="sech">Most played</h2>' + shown.map((t, i) => trackRow(t, i, "", true)).join("") : "");
+  } else if (query) {
     shown = sorted(all.filter((t) => matches(t, query)));
     const pls = lists.filter((p) => p.name.toLowerCase().includes(query));
     html = `<h2 class="sech">Results for "${esc($("q").value.trim())}"</h2>`;
@@ -1250,11 +1343,20 @@ function drawLists() {
     shown.forEach((t, i) => { html += trackRow(t, i, "", true); });
   } else if (view === "pls") {
     shown = [];
-    html = `<div class="secbar"><h2 class="sech">Playlists</h2></div>
-      <div class="row newpl"><input id="plName" class="grow" type="text" placeholder="new playlist name" maxlength="60" aria-label="New playlist name"><button class="go" id="mk">Create</button></div>`;
-    const mine = myLists(), others = lists.filter((p) => p.user_id !== me.id);
-    html += '<h2 class="sech">Your playlists</h2>' + (mine.length ? mine.map(plRow).join("") : '<div class="empty">No playlists yet. Name one above.</div>');
-    if (others.length) html += '<h2 class="sech">Shared</h2>' + others.map(plRow).join("");
+    const chips = [["all", "All"], ["mine", "By you"], ["shared", "Shared"]];
+    let pls = lists.filter((p) => libFilter === "all" || (libFilter === "mine" ? p.user_id === me.id : p.user_id !== me.id));
+    pls = libSort === "alpha"
+      ? [...pls].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
+      : [...pls].sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+    html = `<div class="secbar deskonly"><h2 class="sech">Your Library</h2></div>
+      <div class="chips" role="group" aria-label="Filter">${chips.map(([v, l]) => `<button class="chip${libFilter === v ? " on" : ""}" data-chip="${v}" aria-pressed="${libFilter === v}">${l}</button>`).join("")}</div>
+      <div class="lsort"><button class="lsortbtn" data-lsort="1" aria-label="Change sort">${ICON("ic-sort")}${libSort === "alpha" ? "Alphabetical" : "Recents"}</button></div>`;
+    if (libFilter === "all") html += `<div class="track trow prow" tabindex="0" data-golib="1"><span class="lcov"><span class="libtile">${ICON("ic-note")}</span></span>
+      <span class="meta"><span class="t">All songs</span><span class="by">Collection · ${all.length} song${all.length === 1 ? "" : "s"}</span></span><span class="tact"></span></div>`;
+    html += pls.map(plRow).join("");
+    if (!pls.length && libFilter !== "all") html += `<div class="empty">${libFilter === "mine" ? "You haven't made a playlist yet." : "No shared playlists yet."}</div>`;
+    html += `<div class="track trow prow" tabindex="0" data-newpl="1"><span class="lcov"><span class="newtile">${ICON("ic-plus")}</span></span>
+      <span class="meta"><span class="t">New playlist</span><span class="by">Create one and add songs with \u2295</span></span><span class="tact"></span></div>`;
   } else {
     const p = lists.find((x) => x.id === view.slice(3));
     if (!p) { view = "pls"; return drawLists(); }
@@ -1299,7 +1401,44 @@ function markNow() {
   $("npArt").classList.toggle("playing", playing && nowId != null);
 }
 
-function go(v) { clearSearch(); view = v; drawLists(); $("main").scrollTop = 0; }
+function go(v) {
+  clearSearch(); view = v; mSearch = false;
+  mtab = v === "lib" ? "home" : "library";
+  paintTabs(); drawLists(); $("main").scrollTop = 0; scrollTo(0, 0);
+}
+/* ---------- phones: bottom tabs (Home / Search / Your Library / Create) ---------- */
+let mtab = "home", mSearch = false, libFilter = "all";
+let libSort = (() => { try { return localStorage.getItem("jukebox_libsort") || "recent"; } catch (e) { return "recent"; } })();
+function paintTabs() {
+  document.querySelectorAll("#tabbar [data-tab]").forEach((b) => { const on = b.dataset.tab === mtab; b.classList.toggle("on", on); if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
+  $("pTitle").textContent = mtab === "search" ? "Search" : mtab === "library" ? "Your Library" : "Budsbox";
+  document.body.classList.toggle("m-search", mSearch);
+}
+function setTab(t) {
+  if (t === "create") { openCreate(); return; }
+  if (t === "home") return go("lib");
+  if (t === "library") return go("pls");
+  clearSearch(); mtab = "search"; mSearch = true; paintTabs(); drawLists(); scrollTo(0, 0);
+  setTimeout(() => $("q").focus(), 60);
+}
+$("tabbar").onclick = (e) => { const b = e.target.closest("[data-tab]"); if (b) setTab(b.dataset.tab); };
+$("mSearchBtn").onclick = () => setTab("search");
+$("mCreateBtn").onclick = () => openCreate();
+function openCreate(playlist) {
+  $("csNew").classList.toggle("hide", !playlist); $("csName").value = "";
+  openOv("createSheet");
+  if (playlist) setTimeout(() => $("csName").focus(), 60);
+}
+$("csPlaylist").onclick = () => { $("csNew").classList.remove("hide"); $("csName").focus(); };
+$("csMake").onclick = async () => {
+  const name = $("csName").value.trim();
+  if (!name) { $("csName").focus(); return; }
+  const p = await createPlaylist(name);
+  if (p) { closeOv("createSheet"); toast("Created " + p.name); sfxDing(); go("pl:" + p.id); }
+};
+$("csName").onkeydown = (e) => { if (e.key === "Enter") $("csMake").click(); };
+$("csUpload").addEventListener("click", () => setTimeout(() => closeOv("createSheet"), 0));
+$("csJam").onclick = () => { closeOv("createSheet"); openJam(); };
 $("tabs").onclick = (e) => { const b = e.target.closest("button"); if (b) go(b.dataset.v); };
 $("navLib").onclick = () => go("lib");
 $("side").addEventListener("click", (e) => { const b = e.target.closest("[data-spl]"); if (b) go("pl:" + b.dataset.spl); });
@@ -1324,6 +1463,10 @@ $("lists").onclick = (e) => {
       pickPlay(shown[Math.floor(Math.random() * shown.length)], shown); drawLists(); return;
     }
   }
+  if (b && b.dataset.chip) { libFilter = b.dataset.chip; return drawLists(); }
+  if (b && b.dataset.lsort) { libSort = libSort === "alpha" ? "recent" : "alpha"; try { localStorage.setItem("jukebox_libsort", libSort); } catch (e2) {} return drawLists(); }
+  if (e.target.closest("[data-golib]")) return go("lib");
+  if (e.target.closest("[data-newpl]")) return openCreate(true);
   const pl = e.target.closest("[data-pl]");
   if (pl) return go("pl:" + pl.dataset.pl);
   const r = e.target.closest(".track[data-i]");
@@ -1332,7 +1475,9 @@ $("lists").onclick = (e) => {
 $("lists").onkeydown = (e) => {
   if (e.target.id === "plName" && e.key === "Enter") return createFromInput(e.target);
   if (e.key !== "Enter" || !e.target.classList.contains("track")) return;
-  if (e.target.dataset.pl) go("pl:" + e.target.dataset.pl);
+  if (e.target.dataset.golib) go("lib");
+  else if (e.target.dataset.newpl) openCreate(true);
+  else if (e.target.dataset.pl) go("pl:" + e.target.dataset.pl);
   else pickPlay(shown[+e.target.dataset.i], shown);
 };
 // tapping a song: plays it, or in someone else's Jam adds it to the shared queue
