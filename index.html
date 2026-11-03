@@ -137,8 +137,6 @@ input[type=file]{display:none}
 .trow .plays{font-size:9px;color:#b9c2b4}
 .lhead .plays{font-size:9px}
 .tact{display:flex;justify-content:flex-end;gap:2px}
-.tact button{padding:4px 7px}
-.tact button.ico{padding:4px 6px}
 @media (hover:hover) and (pointer:fine){.trow .tact{visibility:hidden}.trow:hover .tact,.trow:focus-within .tact{visibility:visible}}
 .prow{grid-template-columns:40px minmax(0,1fr) auto}
 #lists .trow[data-i]::before{top:0;bottom:0;right:100%}
@@ -162,10 +160,43 @@ input[type=file]{display:none}
 .sitem .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sitem .sub{flex:none}
 #side h3:first-of-type{margin-top:16px}
-#npArt{width:100%;max-width:300px;aspect-ratio:1;margin:0 auto 12px;border:4px solid #000;background:#000a}
+/* Now Playing panel (Spotify-style right panel) */
+#np{background:#121312;border:4px solid #000;padding:12px;gap:12px}
+.nphead{display:flex;align-items:center;gap:8px}
+#npCtx{flex:1;min-width:0;font-size:11px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#npArt{position:relative;width:100%;aspect-ratio:1;border:4px solid #000;background:#000;flex:none}
 #npArt .disc,#npArt .disc svg,#npArt .cover{width:100%;height:100%;border:0}
-#npTitle{color:var(--gold);font-size:12px;word-break:break-word}
-#npLyrics{flex:1;min-height:120px;overflow:auto;white-space:pre-wrap;word-break:break-word;font:9px/2 "Press Start 2P",ui-monospace,monospace;background:#000a;padding:10px;margin:6px 0 8px;color:#fff}
+.npcap{display:flex;align-items:center;gap:8px;margin-top:-2px}
+#npTitle{color:#fff;font-size:15px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:2px 2px 0 #000}
+#npBy{font-size:9px;color:#b9c2b4;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#npAdd svg,#npEdit svg{width:18px;height:18px}
+.npcard{background:#232823;border:3px solid #000;padding:12px;flex:none}
+.npch{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.npch h3{flex:1;margin:0;font-size:10px;color:#fff;text-shadow:2px 2px 0 #000}
+.nplyr{background:linear-gradient(180deg,#3f7522,#2b4a1e)}
+#npLyrics{white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.9;color:#fff;text-shadow:2px 2px 0 #0008;max-height:9.6em;overflow:hidden;-webkit-mask-image:linear-gradient(#000 70%,transparent);mask-image:linear-gradient(#000 70%,transparent)}
+.nplyr.full #npLyrics{max-height:none;-webkit-mask-image:none;mask-image:none}
+#npLyrics.none{font-size:10px;opacity:.8;-webkit-mask-image:none;mask-image:none}
+.nplink{background:transparent;border:0;outline:0;padding:6px 0 0;margin:0;font-size:9px;color:#dfe7da;text-decoration:underline;text-underline-offset:3px;text-shadow:none}
+.nplink:hover{background:transparent;color:#fff}
+.nplink:active{transform:none}
+.npch .nplink{padding:0}
+.npbig{font-size:12px;color:#fff;margin-bottom:6px;word-break:break-word}
+.credit{display:flex;flex-direction:column;gap:2px;padding:4px 0}
+.credit + .credit{margin-top:6px}
+.credit b{font-weight:normal;color:#fff;font-size:10px}
+.credit span{font-size:8px;color:#b9c2b4}
+.nextrow{display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px;margin:0 -4px}
+.nextrow:hover{background:#ffffff10}
+.nextrow .cover,.nextrow .disc,.nextrow .disc svg{width:40px;height:40px}
+.nextrow .meta .t{font-size:10px}
+/* flat row/icon buttons (Spotify-style): circled plus, pencil, remove */
+.rbtn{background:transparent;border:0;outline:0;margin:0;padding:6px;line-height:0;color:#b9c2b4;text-shadow:none}
+.rbtn:hover{background:transparent;color:#fff}
+.rbtn:active{transform:none;color:var(--gold)}
+.rbtn:focus-visible{outline:3px solid var(--gold)}
+.rbtn svg{width:16px;height:16px;display:block}
+.rbtn.rdel:hover{color:#ff6b5b}
 
 .overlay{position:fixed;inset:0;background:#000b;display:block;overflow:auto;padding:8vh 12px calc(env(safe-area-inset-bottom) + var(--ph) + 20px);z-index:10}
 .overlay .panel{width:100%;max-width:460px;margin:0 auto}
@@ -302,9 +333,10 @@ body.full-open{overflow:hidden}
   #searchBox{grid-column:auto;max-width:520px;width:100%;justify-self:center}
   #q{margin:0}
   .hdr > .spacer{display:none}
-  #app:not(.hide){display:grid;grid-template-columns:240px minmax(280px,340px) minmax(0,1fr);gap:16px;height:calc(100vh - var(--hh) - var(--ph) - 32px);height:calc(100dvh - var(--hh) - var(--ph) - 32px)}
+  #app:not(.hide){display:grid;grid-template-columns:240px minmax(0,1fr) minmax(280px,340px);gap:16px;height:calc(100vh - var(--hh) - var(--ph) - 32px);height:calc(100dvh - var(--hh) - var(--ph) - 32px)}
   #side,#np{display:flex;flex-direction:column;min-height:0;overflow:auto}
-  #main{min-height:0;overflow:auto;padding-right:4px}
+  #main{min-height:0;overflow:auto;padding-right:4px;order:2}
+  #np{order:3}
   #main h2:first-child{margin-top:4px}
   #tabs{display:none}
   /* Spotify-style bottom bar: song | controls + progress | lyrics, queue, jam, volume */
@@ -378,6 +410,9 @@ body.full-open{overflow:hidden}
   <symbol id="ic-repeat" viewBox="0 0 8 8" fill="currentColor"><rect x="0" y="1" width="5" height="1"/><rect x="5" y="0" width="1" height="3"/><rect x="6" y="1" width="1" height="1"/><rect x="0" y="2" width="1" height="3"/><rect x="2" y="6" width="6" height="1"/><rect x="2" y="5" width="1" height="3"/><rect x="1" y="6" width="1" height="1"/><rect x="7" y="3" width="1" height="3"/></symbol>
   <symbol id="ic-plus" viewBox="0 0 8 8" fill="currentColor"><rect x="3" y="0" width="2" height="8"/><rect x="0" y="3" width="8" height="2"/></symbol>
   <symbol id="ic-jam" viewBox="0 0 8 8" fill="currentColor"><rect x="2" y="0" width="4" height="1"/><rect x="1" y="1" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="0" y="2" width="1" height="3"/><rect x="7" y="2" width="1" height="3"/><rect x="0" y="5" width="2" height="3"/><rect x="6" y="5" width="2" height="3"/></symbol>
+  <symbol id="ic-cplus" viewBox="0 0 9 9" fill="currentColor"><rect x="3" y="0" width="3" height="1"/><rect x="1" y="1" width="2" height="1"/><rect x="6" y="1" width="2" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="7" y="2" width="1" height="1"/><rect x="0" y="3" width="1" height="3"/><rect x="8" y="3" width="1" height="3"/><rect x="1" y="6" width="1" height="1"/><rect x="7" y="6" width="1" height="1"/><rect x="1" y="7" width="2" height="1"/><rect x="6" y="7" width="2" height="1"/><rect x="3" y="8" width="3" height="1"/><rect x="4" y="2" width="1" height="5"/><rect x="2" y="4" width="5" height="1"/></symbol>
+  <symbol id="ic-pen" viewBox="0 0 8 8" fill="currentColor"><rect x="6" y="0" width="2" height="1"/><rect x="5" y="1" width="3" height="1"/><rect x="4" y="2" width="3" height="1"/><rect x="3" y="3" width="3" height="1"/><rect x="2" y="4" width="3" height="1"/><rect x="1" y="5" width="3" height="1"/><rect x="0" y="6" width="3" height="1"/><rect x="0" y="7" width="1" height="1"/><rect x="6" y="2" width="1" height="1" fill="#0000"/></symbol>
+  <symbol id="ic-x" viewBox="0 0 8 8" fill="currentColor"><rect x="1" y="1" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="5" y="5" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="6" y="6" width="1" height="1"/><rect x="1" y="6" width="1" height="1"/></symbol>
   <symbol id="ic-gear" viewBox="0 0 8 8" fill="#fff">
     <rect x="3" y="0" width="2" height="1"/><rect x="1" y="1" width="6" height="1"/>
     <rect x="1" y="2" width="2" height="1"/><rect x="5" y="2" width="2" height="1"/>
@@ -451,16 +486,33 @@ body.full-open{overflow:hidden}
     <div id="sideOthers"></div>
   </aside>
 
-  <!-- desktop: now playing panel -->
-  <section id="np" class="panel" aria-label="Now playing">
+  <!-- desktop: Now Playing panel (right side, like Spotify) -->
+  <section id="np" aria-label="Now playing">
+    <div class="nphead"><span id="npCtx">Library</span><button class="ico pbtn" id="npClose" aria-label="Hide now playing" title="Hide"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-x"/></svg></button></div>
     <div id="npArt"></div>
-    <div id="npTitle">Nothing playing</div>
-    <div id="npBy" class="sub"></div>
-    <div id="npAdded" class="sub ab hide"></div>
-    <div id="npPlays" class="sub"></div>
-    <h3>Lyrics</h3>
-    <div id="npLyrics"></div>
-    <div class="row"><button id="npEdit" class="hide">Edit song</button></div>
+    <div class="npcap">
+      <div class="grow" style="min-width:0"><div id="npTitle">Nothing playing</div><div id="npBy"></div></div>
+      <button class="ico pbtn" id="npAdd" aria-label="Add to playlist" title="Add to playlist"><svg viewBox="0 0 9 9" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-cplus"/></svg></button>
+    </div>
+    <div class="npcard nplyr" id="npLyrCard">
+      <div class="npch"><h3>Lyrics</h3><button class="ico pbtn" id="npEdit" aria-label="Edit lyrics" title="Edit lyrics"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-pen"/></svg></button></div>
+      <div id="npLyrics"></div>
+      <button class="nplink" id="npMore">Show all</button>
+    </div>
+    <div class="npcard">
+      <div class="npch"><h3>About the artist</h3></div>
+      <div id="npArtist" class="npbig"></div>
+      <div id="npArtistStats" class="sub"></div>
+      <button class="nplink" id="npArtistMore">More by this artist</button>
+    </div>
+    <div class="npcard">
+      <div class="npch"><h3>Credits</h3></div>
+      <div id="npCredits"></div>
+    </div>
+    <div class="npcard">
+      <div class="npch"><h3>Next in queue</h3><button class="nplink" id="npOpenQ">Open queue</button></div>
+      <div id="npNext"></div>
+    </div>
   </section>
 
   <main id="main">
@@ -570,7 +622,7 @@ body.full-open{overflow:hidden}
         <span id="art" class="hide"></span>
         <div class="nowcol"><div id="jamTag" class="hide"></div><div id="now" class="idle">Nothing playing</div><div id="nowBy" class="sub"></div></div>
       </div>
-      <button class="ico pbtn" id="pAdd" aria-label="Add to playlist" title="Add to playlist"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-plus"/></svg></button>
+      <button class="ico pbtn" id="pAdd" aria-label="Add to playlist" title="Add to playlist"><svg viewBox="0 0 9 9" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-cplus"/></svg></button>
     </div>
     <div class="pcenter">
       <div class="row pctl">
@@ -612,7 +664,7 @@ body.full-open{overflow:hidden}
       <div id="fTitle">Nothing playing</div>
       <div id="fBy" class="sub"></div>
     </div>
-    <button class="add" id="fAdd" aria-label="Add to playlist or queue">+</button>
+    <button class="ico pbtn fbig" id="fAdd" aria-label="Add to playlist or queue"><svg viewBox="0 0 9 9" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-cplus"/></svg></button>
   </div>
   <div id="fBar" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="fFill"></div></div>
   <div class="ftimes"><span id="fCur">0:00</span><span id="fDur">0:00</span></div>
@@ -968,19 +1020,20 @@ function ago(iso) {
   for (const [n, w] of u) if (s >= n) { const k = Math.floor(s / n); return k + " " + w + (k === 1 ? "" : "s") + " ago"; }
   return "just now";
 }
+const PLUS = '<svg viewBox="0 0 9 9" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-cplus"/></svg>';
 const ICON = (id) => `<svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#${id}"/></svg>`;
 
 // Spotify-style track row: # | cover + title/artist | date added | plays | actions (on hover)
 function trackRow(t, i, extra, canEdit) {
   const edit = canEdit && t.user_id === me.id
-    ? `<button class="ico" data-edit="${i}" aria-label="Edit song" title="Edit song">${ICON("pencil")}</button>` : "";
+    ? `<button class="rbtn" data-edit="${i}" aria-label="Edit song" title="Edit song">${ICON("ic-pen")}</button>` : "";
   return `<div class="track trow" tabindex="0" data-i="${i}">` +
     `<span class="tn"><span class="num">${i + 1}</span><span class="eq">${ICON("ic-play")}</span></span>` +
     thumbHTML(t) +
     `<span class="meta"><span class="t">${esc(t.title)}</span><span class="by">${creditHTML(t)}</span></span>` +
     `<span class="tdate">${esc(ago(t.created_at))}</span>` +
     `<span class="plays" data-plays="${esc(t.id)}">▶ ${t.plays || 0}</span>` +
-    `<span class="tact"><button class="add" data-add="${i}" aria-label="Add to playlist or queue" title="Add to playlist or queue">+</button>${edit}${extra}</span></div>`;
+    `<span class="tact"><button class="rbtn" data-add="${i}" aria-label="Add to playlist or queue" title="Add to playlist or queue">${PLUS}</button>${edit}${extra}</span></div>`;
 }
 const listHead = () => '<div class="lhead" aria-hidden="true"><span class="tn">#</span><span></span><span>Title</span><span class="tdate">Date added</span><span class="plays">Plays</span><span></span></div>';
 
@@ -989,7 +1042,7 @@ function plRow(p) {
   const first = p.track_ids.map((id) => all.find((t) => t.id === id)).find((t) => t && t.cover_path);
   return `<div class="track trow prow" tabindex="0" data-pl="${esc(p.id)}">${first ? thumbHTML(first) : discHTML({ id: p.id })}
     <span class="meta"><span class="t">${esc(p.name)}</span><span class="by">Playlist · ${n} song${n === 1 ? "" : "s"}${mine ? "" : " · by " + esc(p.owner)}</span></span>
-    <span class="tact">${mine ? `<button class="del" data-dpl="${esc(p.id)}" aria-label="Delete playlist">X</button>` : ""}</span></div>`;
+    <span class="tact">${mine ? `<button class="rbtn rdel" data-dpl="${esc(p.id)}" aria-label="Delete playlist" title="Delete playlist">${ICON("ic-x")}</button>` : ""}</span></div>`;
 }
 
 // big header like Spotify: cover, type, title, meta, then play / shuffle / extras
@@ -1076,7 +1129,7 @@ function drawLists() {
     });
     if (!shown.length) html += `<div class="empty">${mine ? "Empty. Use + on any song in the Library to add it here." : "Nothing in here yet."}</div>`;
     else html += swipeHint + listHead();
-    shown.forEach((t, i) => { html += trackRow(t, i, mine ? `<button class="del" data-rm="${i}" aria-label="Remove from playlist" title="Remove from playlist">X</button>` : "", false); });
+    shown.forEach((t, i) => { html += trackRow(t, i, mine ? `<button class="rbtn rdel" data-rm="${i}" aria-label="Remove from playlist" title="Remove from playlist">${ICON("ic-x")}</button>` : "", false); });
   }
   box.innerHTML = html;
   const ss = $("sortSel");
@@ -1394,7 +1447,7 @@ function seekTo(sec) {
   if (jam.role === "guest") jamSeek(audio.currentTime);
 }
 
-function updateQBtn() { $("qBtn").classList.toggle("on", userQueue.length > 0); jamPush(); }
+function updateQBtn() { $("qBtn").classList.toggle("on", userQueue.length > 0); paintNpNext(); jamPush(); }
 
 async function countListen(id) {
   const t = all.find((x) => x.id === id);
@@ -1918,7 +1971,7 @@ $("qBody").onclick = (e) => {
 /* ---------- now playing: lyrics modal (mobile) + side panel (desktop) ---------- */
 function paintPlayCount(t) {
   const s = t ? "▶ " + (t.plays || 0) + " listen" + ((t.plays || 0) === 1 ? "" : "s") : "";
-  $("lyPlays").textContent = s; $("npPlays").textContent = s;
+  $("lyPlays").textContent = s;
 }
 function renderLyrics() {
   if (!me) return;
@@ -1935,13 +1988,33 @@ function renderLyrics() {
   $("lyArt").innerHTML = t && t.cover_path ? `<img src="${coverUrl(t)}" alt="">` : "";
   $("lyText").textContent = lyr;
   $("lyEdit").classList.toggle("hide", !canEdit);
-  // desktop panel
+  // desktop Now Playing panel
+  $("npCtx").textContent = jam.role === "guest" ? (jam.last?.host || "a friend") + "'s Jam" : (t ? ctxName : "Now playing");
   $("npArt").innerHTML = t ? (t.cover_path ? `<span class="cover"><img src="${coverUrl(t)}" alt="Album cover"></span>` : discHTML(t)) : discHTML({ id: "idle" });
   $("npTitle").textContent = t ? t.title : "Nothing playing";
   $("npBy").textContent = by;
-  $("npAdded").textContent = ab; $("npAdded").classList.toggle("hide", !ab);
-  $("npLyrics").textContent = lyr;
+  $("npAdd").classList.toggle("invis", !t);
+  const hasLyr = !!(t && t.lyrics && t.lyrics.trim());
+  $("npLyrics").textContent = hasLyr ? t.lyrics.trim() : t ? (canEdit ? "No lyrics yet. Tap the pencil to add them." : "No lyrics yet.") : "Play a song to see its lyrics.";
+  $("npLyrics").classList.toggle("none", !hasLyr);
+  $("npLyrCard").classList.remove("full");
+  $("npMore").classList.toggle("hide", !hasLyr || t.lyrics.trim().split("\n").length <= 5);
+  $("npMore").textContent = "Show all";
   $("npEdit").classList.toggle("hide", !canEdit);
+  // about the artist: how much of their music is in the Jukebox
+  const art = t ? artistOf(t) : "";
+  const theirs = t && t.artist ? all.filter((x) => artistOf(x) === art) : [];
+  $("npArtist").textContent = t ? art : "";
+  $("npArtistStats").textContent = !t ? "" : t.artist
+    ? `${theirs.length} song${theirs.length === 1 ? "" : "s"} in the Jukebox \u00B7 ${theirs.reduce((n, x) => n + (x.plays || 0), 0)} listens`
+    : "No artist set for this song yet.";
+  $("npArtistMore").classList.toggle("hide", !(t && t.artist && theirs.length > 1));
+  // credits (the uploader only shows if you turned on "Song credits" in settings)
+  $("npCredits").innerHTML = !t ? '<div class="sub">Nothing playing.</div>'
+    : `<div class="credit"><b>${esc(art)}</b><span>Main artist</span></div>` +
+      (ab ? `<div class="credit"><b>${esc(t.uploader || "someone")}</b><span>Added to Jukebox</span></div>` : "") +
+      `<div class="credit"><b>\u25B6 ${t.plays || 0}</b><span>Listen${(t.plays || 0) === 1 ? "" : "s"}</span></div>`;
+  paintNpNext();
   paintPlayCount(t);
 }
 // desktop: show/hide the Now Playing + lyrics panel (like Spotify's lyrics button); phones: lyrics pop-up
@@ -1959,6 +2032,27 @@ $("pAdd").onclick = () => { const t = curTrack(); if (t) openPicker(t); };
 $("lyClose").onclick = () => closeOv("lyrModal");
 $("lyEdit").onclick = () => { const t = curTrack(); closeOv("lyrModal"); if (t) openEdit(t); };
 $("npEdit").onclick = () => { const t = curTrack(); if (t) openEdit(t); };
+$("npAdd").onclick = () => { const t = curTrack(); if (t) openPicker(t); };
+$("npClose").onclick = () => $("lyrBtn").click();
+$("npMore").onclick = () => { const c = $("npLyrCard"); c.classList.toggle("full"); $("npMore").textContent = c.classList.contains("full") ? "Show less" : "Show all"; };
+$("npArtistMore").onclick = () => { const t = curTrack(); if (!t) return; $("q").value = artistOf(t); query = artistOf(t).toLowerCase(); drawLists(); $("main").scrollTop = 0; };
+$("npOpenQ").onclick = () => { renderQueue(); openOv("qModal"); };
+// "Next in queue": your queued songs first, then the rest of the list
+function nextUp() {
+  if (userQueue.length) return { t: userQueue[0], from: "q" };
+  const i = queue.findIndex((x) => x.id === ctxId);
+  if (i >= 0 && queue[i + 1]) return { t: queue[i + 1], from: "l", idx: i + 1 };
+  if (repeatMode === "all" && queue.length) return { t: queue[0], from: "l", idx: 0 };
+  return null;
+}
+function paintNpNext() {
+  const n = me && nowId != null ? nextUp() : null;
+  $("npNext").innerHTML = n
+    ? `<div class="nextrow" id="npNextRow" role="button" tabindex="0" title="Play next song">${thumbHTML(n.t)}<span class="meta"><span class="t">${esc(n.t.title)}</span><span class="by">${esc(artistOf(n.t))}</span></span></div>`
+    : '<div class="sub">Nothing up next.</div>';
+}
+$("npNext").addEventListener("click", (e) => { if (e.target.closest("#npNextRow")) step(1); });
+$("npNext").addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.id === "npNextRow") step(1); });
 
 /* ---------- edit song: title, artist, cover, lyrics, delete ---------- */
 let editTrack = null, pendingCover = null, dropCover = false, pendingUrl = null;
