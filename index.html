@@ -99,6 +99,63 @@ input[type=file]{display:none}
 #plhead{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:18px 0 6px}
 #plhead h2{margin:0;flex:1;min-width:120px}
 
+/* ---------- Spotify-style list view ---------- */
+.hero{position:relative;display:flex;align-items:flex-end;gap:20px;padding:22px 20px 18px;margin:0 0 0;background:linear-gradient(180deg,#4f8f2c 0%,#2f5a1c 60%,#22301d 100%);border:4px solid #000}
+.hart{flex:none;width:180px;height:180px;background:#000;border:4px solid #000;box-shadow:6px 6px 0 #0007}
+.hart .disc,.hart .disc svg,.hart .cover{width:100%;height:100%;border:0}
+.hmeta{min-width:0}
+.htitle{font-size:34px;line-height:1.2;margin:8px 0 10px;text-align:left;word-break:break-word;text-shadow:4px 4px 0 #000a}
+.hsub b{color:#fff}
+.cover.pix img{image-rendering:pixelated}
+.hback{position:absolute;top:10px;left:10px;transform:rotate(90deg)}
+.hbar{display:flex;align-items:center;gap:12px;padding:14px 4px 8px;flex-wrap:wrap}
+.bigplay{padding:16px;line-height:0}
+.bigplay svg{width:26px;height:26px}
+.hbar .pbtn svg{width:24px;height:24px}
+.uplbtn{padding:8px 12px;font-size:10px}
+.sortw{display:inline-flex;align-items:center;gap:8px}
+#sortSel{font:inherit;font-size:9px;color:#fff;background:#000;border:3px solid;border-color:var(--stone-d) var(--stone-l) var(--stone-l) var(--stone-d);padding:6px 8px;border-radius:0}
+.secbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:18px 0 8px}
+.secbar .sech{margin:0;flex:1}
+.sech{font-size:12px;margin:20px 0 8px}
+.newpl{flex-wrap:nowrap;margin-bottom:8px}.newpl input{margin:0}
+/* rows: flat, compact, highlight on hover; actions appear on hover (always on touch) */
+.lhead,.trow{display:grid;grid-template-columns:32px 40px minmax(0,1fr) 120px 64px 96px;align-items:center;column-gap:12px}
+.lhead{position:sticky;top:0;z-index:1;font-size:9px;color:#b9c2b4;padding:8px 10px;margin:0 0 6px;border-bottom:2px solid #ffffff1f;background:var(--dark)}
+.trow{margin:0;padding:6px 10px;background:transparent;border:0;min-height:56px}
+.trow:hover,.trow:focus-within{background:#ffffff10}
+.track.trow.on{background:#9be35a17;border:0}
+.trow.on .t{color:var(--gold)}
+.trow .cover,.trow .disc,.trow .disc svg{width:40px;height:40px}
+.tn{text-align:center;font-size:10px;color:#b9c2b4}
+.tn .eq{display:none;color:var(--gold)}
+.tn .eq svg{width:12px;height:12px;display:inline-block;vertical-align:middle}
+.trow:hover .tn .num,.trow.on .tn .num{display:none}
+.trow:hover .tn .eq,.trow.on .tn .eq{display:inline}
+.trow:hover .tn .eq{color:#fff}.trow.on .tn .eq{color:var(--gold)}
+.tdate{font-size:9px;color:#b9c2b4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trow .plays{font-size:9px;color:#b9c2b4}
+.lhead .plays{font-size:9px}
+.tact{display:flex;justify-content:flex-end;gap:2px}
+.tact button{padding:4px 7px}
+.tact button.ico{padding:4px 6px}
+@media (hover:hover) and (pointer:fine){.trow .tact{visibility:hidden}.trow:hover .tact,.trow:focus-within .tact{visibility:visible}}
+.prow{grid-template-columns:40px minmax(0,1fr) auto}
+#lists .trow[data-i]::before{top:0;bottom:0;right:100%}
+@media (max-width:1023px){
+  .hero{gap:14px;padding:16px 12px 14px;align-items:flex-end}
+  .hart{width:110px;height:110px;border-width:3px;box-shadow:4px 4px 0 #0007}
+  .htitle{font-size:18px;margin:6px 0 6px}
+  .hsub{font-size:8px}
+  .hback{top:6px;left:6px}
+  .hero:has(.hback) .hart{margin-top:26px}
+  .hbar{gap:8px}
+  .lhead{display:none}
+  .trow{grid-template-columns:44px minmax(0,1fr) auto;column-gap:10px;padding:6px 4px}
+  .trow .tn,.trow .tdate,.trow .plays{display:none}
+  .trow .cover,.trow .disc,.trow .disc svg{width:44px;height:44px}
+  .sortw .sub{display:none}
+}
 /* ---------- sidebar + now playing panel (desktop only) ---------- */
 #side,#np{display:none}
 .sitem{display:flex;align-items:center;gap:8px;width:calc(100% - 4px);text-align:left;margin:4px 2px;padding:8px 10px;font-size:10px}
@@ -407,10 +464,7 @@ body.full-open{overflow:hidden}
   </section>
 
   <main id="main">
-    <div class="row">
-      <label class="btn go grow" for="file">+ Upload music</label>
-      <input id="file" type="file" accept="audio/*" multiple>
-    </div>
+    <input id="file" type="file" accept="audio/*" multiple>
     <div class="row" id="tabs">
       <button data-v="lib">Library</button>
       <button data-v="pls">Playlists</button>
@@ -906,21 +960,64 @@ function creditHTML(t) {
   return esc(artistOf(t)) + (ab ? ` <span class="ab">· ${esc(ab)}</span>` : "");
 }
 
+// "3 days ago" style dates for the Date added column
+function ago(iso) {
+  const t = Date.parse(iso || ""); if (!t) return "";
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  const u = [[31536000, "year"], [2592000, "month"], [604800, "week"], [86400, "day"], [3600, "hour"], [60, "minute"]];
+  for (const [n, w] of u) if (s >= n) { const k = Math.floor(s / n); return k + " " + w + (k === 1 ? "" : "s") + " ago"; }
+  return "just now";
+}
+const ICON = (id) => `<svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#${id}"/></svg>`;
+
+// Spotify-style track row: # | cover + title/artist | date added | plays | actions (on hover)
 function trackRow(t, i, extra, canEdit) {
   const edit = canEdit && t.user_id === me.id
-    ? `<button class="ico" data-edit="${i}" aria-label="Edit song"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#pencil"/></svg></button>` : "";
-  return `<div class="track" tabindex="0" data-i="${i}">${thumbHTML(t)}` +
+    ? `<button class="ico" data-edit="${i}" aria-label="Edit song" title="Edit song">${ICON("pencil")}</button>` : "";
+  return `<div class="track trow" tabindex="0" data-i="${i}">` +
+    `<span class="tn"><span class="num">${i + 1}</span><span class="eq">${ICON("ic-play")}</span></span>` +
+    thumbHTML(t) +
     `<span class="meta"><span class="t">${esc(t.title)}</span><span class="by">${creditHTML(t)}</span></span>` +
+    `<span class="tdate">${esc(ago(t.created_at))}</span>` +
     `<span class="plays" data-plays="${esc(t.id)}">▶ ${t.plays || 0}</span>` +
-    `<button class="add" data-add="${i}" aria-label="Add to playlist or queue">+</button>${edit}${extra}</div>`;
+    `<span class="tact"><button class="add" data-add="${i}" aria-label="Add to playlist or queue" title="Add to playlist or queue">+</button>${edit}${extra}</span></div>`;
 }
+const listHead = () => '<div class="lhead" aria-hidden="true"><span class="tn">#</span><span></span><span>Title</span><span class="tdate">Date added</span><span class="plays">Plays</span><span></span></div>';
 
 function plRow(p) {
   const n = p.track_ids.length, mine = p.user_id === me.id;
-  return `<div class="track" tabindex="0" data-pl="${esc(p.id)}"><span class="sym">&gt;</span>
-    <span class="meta"><span class="t">${esc(p.name)}</span><span class="by">${n} track${n === 1 ? "" : "s"}${mine ? "" : " · by " + esc(p.owner)}</span></span>
-    ${mine ? `<button class="del" data-dpl="${esc(p.id)}" aria-label="Delete playlist">X</button>` : ""}</div>`;
+  const first = p.track_ids.map((id) => all.find((t) => t.id === id)).find((t) => t && t.cover_path);
+  return `<div class="track trow prow" tabindex="0" data-pl="${esc(p.id)}">${first ? thumbHTML(first) : discHTML({ id: p.id })}
+    <span class="meta"><span class="t">${esc(p.name)}</span><span class="by">Playlist · ${n} song${n === 1 ? "" : "s"}${mine ? "" : " · by " + esc(p.owner)}</span></span>
+    <span class="tact">${mine ? `<button class="del" data-dpl="${esc(p.id)}" aria-label="Delete playlist">X</button>` : ""}</span></div>`;
 }
+
+// big header like Spotify: cover, type, title, meta, then play / shuffle / extras
+function heroHTML({ kind, title, meta, art, extras, back, canPlay }) {
+  return `<div class="hero">
+    ${back ? `<button class="ico hback" data-back="1" aria-label="Back to playlists">${ICON("ic-down")}</button>` : ""}
+    <div class="hart">${art}</div>
+    <div class="hmeta"><div class="sub">${esc(kind)}</div><h1 class="htitle">${esc(title)}</h1><div class="sub hsub">${meta}</div></div>
+  </div>
+  <div class="hbar">
+    ${canPlay ? `<button class="go bigplay" data-playall="1" aria-label="Play">${ICON("ic-play")}</button>
+    <button class="ico pbtn${shuffleOn ? " on" : ""}" data-shufplay="1" aria-label="Shuffle play" title="Shuffle play">${ICON("ic-shuffle")}</button>` : ""}
+    ${extras || ""}
+  </div>`;
+}
+let sortBy = (() => { try { return localStorage.getItem("jukebox_sort") || "recent"; } catch (e) { return "recent"; } })();
+const sortSel = () => `<label class="sortw"><span class="sub">Sort</span><select id="sortSel" aria-label="Sort songs">
+  ${[["recent", "Recently added"], ["title", "Title"], ["artist", "Artist"], ["plays", "Most played"]].map(([v, l]) => `<option value="${v}"${sortBy === v ? " selected" : ""}>${l}</option>`).join("")}
+</select></label>`;
+function sorted(list) {
+  const a = [...list], k = (x) => String(x || "").toLowerCase();
+  if (sortBy === "title") a.sort((x, y) => k(x.title).localeCompare(k(y.title)));
+  else if (sortBy === "artist") a.sort((x, y) => k(artistOf(x)).localeCompare(k(artistOf(y))) || k(x.title).localeCompare(k(y.title)));
+  else if (sortBy === "plays") a.sort((x, y) => (y.plays || 0) - (x.plays || 0));
+  else a.sort((x, y) => String(y.created_at || "").localeCompare(String(x.created_at || "")));
+  return a;
+}
+
 
 /* ---------- search ---------- */
 function matches(t, q) {
@@ -938,42 +1035,52 @@ function drawLists() {
   const tab = query ? "" : view.startsWith("pl:") ? "pls" : view;
   document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("go", b.dataset.v === tab));
   const swipeHint = isTouch ? '<div class="sub hint">Swipe right on a song to queue it</div>' : "";
+  const plays = (list) => list.reduce((n, t) => n + (t.plays || 0), 0);
   let html = "";
 
   if (query) {
-    shown = all.filter((t) => matches(t, query));
+    shown = sorted(all.filter((t) => matches(t, query)));
     const pls = lists.filter((p) => p.name.toLowerCase().includes(query));
-    html = `<h2>Results for "${esc($("q").value.trim())}"</h2>`;
+    html = `<h2 class="sech">Results for "${esc($("q").value.trim())}"</h2>`;
     if (!shown.length && !pls.length) html += '<div class="empty">No matches. Try a song title or artist.</div>';
-    if (shown.length) { html += "<h2>Songs</h2>" + swipeHint; shown.forEach((t, i) => { html += trackRow(t, i, "", true); }); }
-    if (pls.length) { html += "<h2>Playlists</h2>"; pls.forEach((p) => { html += plRow(p); }); }
+    if (shown.length) { html += `<div class="secbar"><h2 class="sech">Songs</h2>${sortSel()}</div>` + swipeHint + listHead(); shown.forEach((t, i) => { html += trackRow(t, i, "", true); }); }
+    if (pls.length) { html += '<h2 class="sech">Playlists</h2>'; pls.forEach((p) => { html += plRow(p); }); }
   } else if (view === "lib") {
-    shown = all;
-    html = "<h2>Library</h2>";
+    shown = sorted(all);
+    html = heroHTML({
+      kind: "Everyone's music", title: "Library", art: '<span class="cover pix"><img src="icon-512.png" alt=""></span>', canPlay: all.length > 0,
+      meta: `<b>${esc(myName())}</b> · ${all.length} song${all.length === 1 ? "" : "s"} · ${plays(all)} listens`,
+      extras: `<label class="btn uplbtn" for="file">+ Upload</label><span class="grow"></span>${sortSel()}`,
+    });
     if (!all.length) html += '<div class="empty">No music yet. Upload a song to start the world.</div>';
-    else html += swipeHint;
-    all.forEach((t, i) => { html += trackRow(t, i, "", true); });
+    else html += swipeHint + listHead();
+    shown.forEach((t, i) => { html += trackRow(t, i, "", true); });
   } else if (view === "pls") {
     shown = [];
-    html = `<div class="panel" style="margin-top:12px"><div>New playlist</div>
-      <input id="plName" type="text" placeholder="playlist name" maxlength="60">
-      <button class="go" id="mk">Create playlist</button></div>`;
+    html = `<div class="secbar"><h2 class="sech">Playlists</h2></div>
+      <div class="row newpl"><input id="plName" class="grow" type="text" placeholder="new playlist name" maxlength="60" aria-label="New playlist name"><button class="go" id="mk">Create</button></div>`;
     const mine = myLists(), others = lists.filter((p) => p.user_id !== me.id);
-    html += "<h2>Your playlists</h2>" + (mine.length ? mine.map(plRow).join("") : '<div class="empty">No playlists yet. Name one above.</div>');
-    if (others.length) html += "<h2>Shared</h2>" + others.map(plRow).join("");
+    html += '<h2 class="sech">Your playlists</h2>' + (mine.length ? mine.map(plRow).join("") : '<div class="empty">No playlists yet. Name one above.</div>');
+    if (others.length) html += '<h2 class="sech">Shared</h2>' + others.map(plRow).join("");
   } else {
     const p = lists.find((x) => x.id === view.slice(3));
     if (!p) { view = "pls"; return drawLists(); }
     const mine = p.user_id === me.id;
     shown = p.track_ids.map((id) => all.find((t) => t.id === id)).filter(Boolean);
-    html = `<div id="plhead"><button data-back="1" aria-label="Back">&lt;</button><h2>${esc(p.name)}</h2>
-      <button class="go" data-playall="1">Play all</button>${mine ? `<button class="del" data-dpl="${esc(p.id)}" aria-label="Delete playlist">X</button>` : ""}</div>
-      <div class="sub" style="margin-bottom:6px">by ${esc(p.owner)}</div>`;
+    const cov = shown.find((t) => t.cover_path);
+    html = heroHTML({
+      kind: mine ? "Playlist" : "Shared playlist", title: p.name, back: true, canPlay: shown.length > 0,
+      art: cov ? `<span class="cover"><img src="${coverUrl(cov)}" alt=""></span>` : discHTML({ id: p.id }),
+      meta: `<b>${esc(p.owner)}</b> · ${shown.length} song${shown.length === 1 ? "" : "s"} · ${plays(shown)} listens`,
+      extras: mine ? `<span class="grow"></span><button class="del" data-dpl="${esc(p.id)}" aria-label="Delete playlist" title="Delete playlist">X</button>` : "",
+    });
     if (!shown.length) html += `<div class="empty">${mine ? "Empty. Use + on any song in the Library to add it here." : "Nothing in here yet."}</div>`;
-    else html += swipeHint;
-    shown.forEach((t, i) => { html += trackRow(t, i, mine ? `<button class="del" data-rm="${i}" aria-label="Remove from playlist">X</button>` : "", false); });
+    else html += swipeHint + listHead();
+    shown.forEach((t, i) => { html += trackRow(t, i, mine ? `<button class="del" data-rm="${i}" aria-label="Remove from playlist" title="Remove from playlist">X</button>` : "", false); });
   }
   box.innerHTML = html;
+  const ss = $("sortSel");
+  if (ss) ss.onchange = () => { sortBy = ss.value; try { localStorage.setItem("jukebox_sort", sortBy); } catch (e) {} drawLists(); };
   markNow(); drawSide();
 }
 
@@ -1017,6 +1124,12 @@ $("lists").onclick = (e) => {
     if (b.id === "mk") return createFromInput($("plName"));
     if (b.dataset.back !== undefined) return go("pls");
     if (b.dataset.playall !== undefined) { if (shown.length) pickPlay(shown[0], shown, true); return; }
+    if (b.dataset.shufplay !== undefined) {
+      if (!shown.length) return;
+      if (jam.role === "guest") { jamCmd({ cmd: "list", ids: shuffled(shown, null).map((x) => x.id) }); toast("Shuffling this list for the Jam"); return; }
+      if (!shuffleOn) { shuffleOn = true; try { localStorage.setItem("jukebox_shuffle", "1"); } catch (e) {} paintModes(); }
+      pickPlay(shown[Math.floor(Math.random() * shown.length)], shown); drawLists(); return;
+    }
   }
   const pl = e.target.closest("[data-pl]");
   if (pl) return go("pl:" + pl.dataset.pl);
