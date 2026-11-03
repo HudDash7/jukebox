@@ -897,6 +897,24 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
+/* ---------- spacebar = play / pause (like Spotify) ---------- */
+document.addEventListener("keydown", (e) => {
+  if (e.code !== "Space" && e.key !== " ") return;
+  if (!me || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+  const el = e.target;
+  // typing somewhere: leave the space alone
+  if (el.closest && el.closest("input, textarea, select, [contenteditable]")) return;
+  // a button a keyboard user tabbed to keeps its normal Space behaviour; one you just clicked doesn't
+  const ctl = el.closest && el.closest("button, .btn, [role=button], [role=slider]");
+  if (ctl && ctl !== clickedCtl) return;
+  e.preventDefault();
+  $("play").click();
+});
+// remember the control last focused by mouse/touch, so Space doesn't re-press it
+let clickedCtl = null;
+document.addEventListener("pointerdown", (e) => { clickedCtl = e.target.closest ? e.target.closest("button, .btn, [role=button], [role=slider]") : null; }, true);
+document.addEventListener("keydown", (e) => { if (e.key === "Tab") clickedCtl = null; }, true);
+
 /* ---------- toast ---------- */
 let toastT = 0;
 function toast(text) {
@@ -1490,8 +1508,10 @@ function initMediaSession() {
     if (d.fastSeek && "fastSeek" in audio && jam.role !== "guest") { audio.fastSeek(d.seekTime); syncPos(); }
     else seekTo(d.seekTime);
   });
-  on("seekforward", (d) => seekBy(d.seekOffset || 10));
-  on("seekbackward", (d) => seekBy(-(d.seekOffset || 10)));
+  // No 10-second skip handlers on purpose: when they exist, iPhones show "10s" buttons on the
+  // lock screen instead of previous / next song. Clearing them gives whole-song skipping.
+  on("seekforward", null);
+  on("seekbackward", null);
 }
 function syncPos() {
   const ms = navigator.mediaSession;
