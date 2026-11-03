@@ -402,6 +402,25 @@ body.full-open{overflow:hidden}
   body.np-off #app:not(.hide){grid-template-columns:240px minmax(0,1fr)}
   body.np-off #np{display:none}
 }
+
+/* ---------- softer corners ---------- */
+:root{--r-sm:4px;--r:8px;--r-lg:12px}
+.panel,.menu,.hero,#np,.npcard,.fcard,#lbBody,#lyText,.jamcode,#toast,.lbpanel{border-radius:var(--r-lg)}
+button,.btn,input[type=text],input[type=email],input[type=password],input[type=search],textarea,#sortSel{border-radius:var(--r)}
+.track,.trow,.lbrow,.nextrow,.sitem,.lhead{border-radius:var(--r)}
+.cover,.hart,#npArt,#fArt,.plecov,#edPrev,#lyArt{border-radius:var(--r);overflow:hidden}
+.hart .cover,#npArt .cover,#fArt .cover,.plecov .cover{border-radius:0}
+.hart .hedit{border-radius:0}
+.trow .cover,.nextrow .cover,.lbrow .cover,.sthumb .cover,#art .cover{border-radius:var(--r-sm)}
+#bar,#fBar{border-radius:var(--r-sm);overflow:hidden}
+#volR::-webkit-slider-runnable-track{border-radius:var(--r-sm)}
+#volR::-moz-range-track{border-radius:var(--r-sm)}
+#volR::-webkit-slider-thumb{border-radius:3px}
+#volR::-moz-range-thumb{border-radius:3px}
+.pbtn,.rbtn{border-radius:var(--r)}
+.pbtn.on::after{border-radius:50%}
+.hedit svg{border-radius:var(--r-sm)}
+#lists .track[data-i]::before{border-radius:var(--r) 0 0 var(--r)}
 </style>
 </head>
 <body>
