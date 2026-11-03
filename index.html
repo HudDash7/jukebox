@@ -99,6 +99,28 @@ input[type=file]{display:none}
 #plhead{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:18px 0 6px}
 #plhead h2{margin:0;flex:1;min-width:120px}
 
+/* leaderboard */
+.lbopen{display:inline-flex;align-items:center;gap:8px}
+.lbopen svg{width:14px;height:14px;color:var(--gold)}
+.lbpanel{max-width:500px!important}
+.lbtitle{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--gold);margin-bottom:10px}
+.lbtitle svg{width:20px;height:20px}
+#lbTabs{margin-bottom:10px}
+#lbBody{min-height:120px;max-height:56vh;overflow:auto;background:#000a;border:3px solid #000;padding:8px}
+.lbrow{display:flex;align-items:center;gap:10px;padding:6px 4px}
+.lbrow + .lbrow{border-top:2px solid #ffffff12}
+.lbrow.me{background:#9be35a1c}
+.lbrow[data-lbplay]{cursor:pointer}.lbrow[data-lbplay]:hover{background:#ffffff12}
+.lbrank{flex:none;width:26px;text-align:center;font-size:11px;color:#b9c2b4}
+.lbrank.r1{color:#fcdb5b}.lbrank.r2{color:#d9d9d9}.lbrank.r3{color:#d08a4a}
+.lbrow .cover,.lbrow .disc,.lbrow .disc svg{width:36px;height:36px}
+.lbrow .meta .t{font-size:10px}
+.lbscore{flex:none;font-size:9px;color:var(--gold);white-space:nowrap}
+.lbnote{font-size:8px;line-height:1.8;color:#b9c2b4;margin:8px 2px 0}
+.lbfeed{font-size:9px;line-height:1.9;padding:4px 2px;color:#dfe7da}
+.lbfeed + .lbfeed{border-top:2px solid #ffffff12}
+.lbfeed b{font-weight:normal;color:var(--gold)}
+
 /* playlist covers */
 .hart{position:relative}
 .hedit{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;margin:0;padding:0;border:0;outline:0;background:#000b;color:#fff;font-size:9px;text-shadow:2px 2px 0 #000;opacity:0;transition:opacity .12s}
@@ -436,6 +458,7 @@ body.full-open{overflow:hidden}
   <symbol id="ic-cplus" viewBox="0 0 9 9" fill="currentColor"><rect x="3" y="0" width="3" height="1"/><rect x="1" y="1" width="2" height="1"/><rect x="6" y="1" width="2" height="1"/><rect x="1" y="2" width="1" height="1"/><rect x="7" y="2" width="1" height="1"/><rect x="0" y="3" width="1" height="3"/><rect x="8" y="3" width="1" height="3"/><rect x="1" y="6" width="1" height="1"/><rect x="7" y="6" width="1" height="1"/><rect x="1" y="7" width="2" height="1"/><rect x="6" y="7" width="2" height="1"/><rect x="3" y="8" width="3" height="1"/><rect x="4" y="2" width="1" height="5"/><rect x="2" y="4" width="5" height="1"/></symbol>
   <symbol id="ic-pen" viewBox="0 0 8 8" fill="currentColor"><rect x="6" y="0" width="2" height="1"/><rect x="5" y="1" width="3" height="1"/><rect x="4" y="2" width="3" height="1"/><rect x="3" y="3" width="3" height="1"/><rect x="2" y="4" width="3" height="1"/><rect x="1" y="5" width="3" height="1"/><rect x="0" y="6" width="3" height="1"/><rect x="0" y="7" width="1" height="1"/><rect x="6" y="2" width="1" height="1" fill="#0000"/></symbol>
   <symbol id="ic-x" viewBox="0 0 8 8" fill="currentColor"><rect x="1" y="1" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="5" y="5" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="6" y="6" width="1" height="1"/><rect x="1" y="6" width="1" height="1"/></symbol>
+  <symbol id="ic-trophy" viewBox="0 0 8 8" fill="currentColor"><rect x="1" y="0" width="6" height="1"/><rect x="1" y="1" width="6" height="2"/><rect x="2" y="3" width="4" height="1"/><rect x="0" y="1" width="1" height="2"/><rect x="7" y="1" width="1" height="2"/><rect x="3" y="4" width="2" height="2"/><rect x="2" y="6" width="4" height="1"/><rect x="1" y="7" width="6" height="1"/></symbol>
   <symbol id="ic-gear" viewBox="0 0 8 8" fill="#fff">
     <rect x="3" y="0" width="2" height="1"/><rect x="1" y="1" width="6" height="1"/>
     <rect x="1" y="2" width="2" height="1"/><rect x="5" y="2" width="2" height="1"/>
@@ -472,6 +495,8 @@ body.full-open{overflow:hidden}
           <button data-ab="off">Off</button><button data-ab="name">Names</button><button data-ab="you" title="Names, but your own uploads say You">"You"</button>
         </div>
         <div class="sub" id="abHint" style="margin-top:4px"></div>
+        <h3>Fun</h3>
+        <button id="lbOpen" class="lbopen"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-trophy"/></svg>Leaderboard</button>
         <h3>Account</h3>
         <button id="logout">Log out</button>
       </div>
@@ -613,6 +638,18 @@ body.full-open{overflow:hidden}
     </div>
     <div class="msg" id="jamMsg"></div>
     <div class="row"><button id="jamClose">Done</button></div>
+  </div>
+</div>
+
+<!-- Leaderboard (Settings > Fun) -->
+<div id="lbModal" class="overlay hide">
+  <div class="panel lbpanel">
+    <div class="lbtitle"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-trophy"/></svg>Leaderboard</div>
+    <div class="row seg" id="lbTabs" role="tablist">
+      <button data-lb="firsts" role="tab">Firsts</button><button data-lb="songs" role="tab">Top songs</button><button data-lb="people" role="tab">Listeners</button>
+    </div>
+    <div id="lbBody"></div>
+    <div class="row"><button class="go" id="lbClose">Done</button></div>
   </div>
 </div>
 
@@ -776,6 +813,19 @@ grant execute on function public.bump_play(text) to authenticated;
 ARTIST NAMES NEED THIS. Run once:
 
 alter table public.tracks add column if not exists artist text;
+
+LEADERBOARD (who listened to what, and when) NEEDS THIS. Run once:
+
+create table if not exists public.listens (
+  id bigint generated always as identity primary key,
+  track_id text not null,
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  listener text not null,
+  created_at timestamptz not null default now()
+);
+alter table public.listens enable row level security;
+create policy "listens read" on public.listens for select to authenticated using (true);
+create policy "listens insert own" on public.listens for insert to authenticated with check (auth.uid() = user_id);
 
 PLAYLIST COVERS NEED THIS. Run once:
 
@@ -1589,7 +1639,83 @@ async function countListen(id) {
   const { data, error } = await sb.rpc("bump_play", { tid: String(id) });
   if (error) { t.plays--; paintPlays(t); console.warn("bump_play failed (run the SQL in the script comment):", error.message); }
   else if (typeof data === "number") { t.plays = data; paintPlays(t); }
+  // leaderboard history (who + when); quietly skipped if the listens table isn't set up yet
+  if (!lb.noTable) {
+    const r = await sb.from("listens").insert({ track_id: String(id), user_id: me.id, listener: myName() });
+    if (r.error) { if (/listens|schema cache|does not exist/i.test(r.error.message)) lb.noTable = true; console.warn("listen history not saved:", r.error.message); }
+    else lb.at = 0; // refresh next time the leaderboard opens
+  }
 }
+
+/* ---------- leaderboard (Settings > Fun) ---------- */
+const lb = { tab: "firsts", rows: null, at: 0, noTable: false, err: "" };
+async function lbLoad(force) {
+  if (!force && lb.rows && Date.now() - lb.at < 60000) return;
+  const { data, error } = await sb.from("listens").select("track_id,user_id,listener,created_at").order("created_at", { ascending: true }).limit(20000);
+  if (error) { lb.rows = []; lb.err = error.message; lb.noTable = /listens|schema cache|does not exist/i.test(error.message); }
+  else { lb.rows = data || []; lb.err = ""; lb.noTable = false; }
+  lb.at = Date.now();
+}
+function lbStats() {
+  const byId = new Map(all.map((t) => [String(t.id), t]));
+  const names = new Map(), firstOf = new Map(), perUser = new Map();
+  for (const r of lb.rows) {
+    names.set(r.user_id, r.listener || "Player");                     // latest name wins
+    const t = byId.get(String(r.track_id)); if (!t) continue;          // song was deleted
+    const u = perUser.get(r.user_id) || { n: 0, songs: new Map() };
+    u.n++; u.songs.set(t.id, (u.songs.get(t.id) || 0) + 1); perUser.set(r.user_id, u);
+    if (!firstOf.has(t.id) && r.user_id !== t.user_id) firstOf.set(t.id, r); // uploaders can't claim their own songs
+  }
+  const firsts = new Map();
+  for (const r of firstOf.values()) firsts.set(r.user_id, (firsts.get(r.user_id) || 0) + 1);
+  return { byId, names, firstOf, perUser, firsts };
+}
+const lbRank = (i) => `<span class="lbrank r${i + 1}">${i < 3 ? ["1st", "2nd", "3rd"][i] : i + 1}</span>`;
+const lbSetup = () => `<div class="empty">This part of the leaderboard starts once the <b>listens</b> table exists. Run the "LEADERBOARD" SQL from the top of the script in Supabase &gt; SQL Editor. Top songs already works.</div>`;
+function renderLb() {
+  document.querySelectorAll("#lbTabs button").forEach((b) => { const on = b.dataset.lb === lb.tab; b.classList.toggle("go", on); b.setAttribute("aria-selected", String(on)); });
+  const box = $("lbBody");
+  if (lb.tab === "songs") {
+    lb.top = [...all].filter((t) => (t.plays || 0) > 0).sort((a, b) => (b.plays || 0) - (a.plays || 0)).slice(0, 15);
+    box.innerHTML = lb.top.length
+      ? lb.top.map((t, i) => `<div class="lbrow" data-lbplay="${i}" role="button" tabindex="0" title="Play">${lbRank(i)}${thumbHTML(t)}<span class="meta"><span class="t">${esc(t.title)}</span><span class="by">${esc(artistOf(t))}</span></span><span class="lbscore">\u25B6 ${t.plays}</span></div>`).join("") + '<div class="lbnote">All-time listens. Tap a song to play it.</div>'
+      : '<div class="empty">No listens yet. Play something for 30 seconds!</div>';
+    return;
+  }
+  if (!lb.rows) { box.innerHTML = '<div class="empty">Loading...</div>'; return; }
+  if (lb.noTable) { box.innerHTML = lbSetup(); return; }
+  if (lb.err) { box.innerHTML = `<div class="empty">${esc(lb.err)}</div>`; return; }
+  const st = lbStats();
+  const nameOf = (uid) => uid === me.id ? myName() : st.names.get(uid) || "Player";
+  if (lb.tab === "firsts") {
+    const board = [...st.firsts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15);
+    const feed = [...st.firstOf.entries()].sort((a, b) => String(b[1].created_at).localeCompare(String(a[1].created_at))).slice(0, 8);
+    box.innerHTML = (board.length
+      ? board.map(([uid, n], i) => `<div class="lbrow${uid === me.id ? " me" : ""}">${lbRank(i)}<span class="meta"><span class="t">${esc(nameOf(uid))}${uid === me.id ? " (you)" : ""}</span></span><span class="lbscore">${n} first${n === 1 ? "" : "s"}</span></div>`).join("")
+      : '<div class="empty">No firsts yet. Be the first to hear a friend\'s new upload!</div>') +
+      (feed.length ? '<h3>Latest firsts</h3>' + feed.map(([tid, r]) => { const t = st.byId.get(String(tid)); return `<div class="lbfeed"><b>${esc(nameOf(r.user_id))}</b> heard \u201C${esc(t.title)}\u201D first \u00B7 ${esc(ago(r.created_at))}</div>`; }).join("") : "") +
+      '<div class="lbnote">A "first" goes to whoever listens to a song before anyone else (30+ seconds). Uploaders don\'t count for their own songs.</div>';
+    return;
+  }
+  const people = [...st.perUser.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 15);
+  box.innerHTML = people.length
+    ? people.map(([uid, u], i) => {
+        const [favId] = [...u.songs.entries()].sort((a, b) => b[1] - a[1])[0];
+        const fav = all.find((t) => t.id === favId);
+        return `<div class="lbrow${uid === me.id ? " me" : ""}">${lbRank(i)}<span class="meta"><span class="t">${esc(nameOf(uid))}${uid === me.id ? " (you)" : ""}</span><span class="by">Most played: ${esc(fav ? fav.title : "?")}</span></span><span class="lbscore">${u.n} listen${u.n === 1 ? "" : "s"}</span></div>`;
+      }).join("") + '<div class="lbnote">Counted since the leaderboard was switched on.</div>'
+    : '<div class="empty">No listens recorded yet.</div>';
+}
+async function openLb() {
+  toggleMenu(false);
+  renderLb(); openOv("lbModal");
+  await lbLoad(); if (isOpen("lbModal")) renderLb();
+}
+$("lbOpen").onclick = openLb;
+$("lbClose").onclick = () => closeOv("lbModal");
+$("lbTabs").onclick = (e) => { const b = e.target.closest("[data-lb]"); if (b) { lb.tab = b.dataset.lb; renderLb(); } };
+$("lbBody").onclick = (e) => { const r = e.target.closest("[data-lbplay]"); if (r && lb.top) pickPlay(lb.top[+r.dataset.lbplay], lb.top); };
+$("lbBody").onkeydown = (e) => { if (e.key === "Enter" && e.target.dataset.lbplay !== undefined) e.target.click(); };
 function paintPlays(t) {
   document.querySelectorAll("[data-plays]").forEach((el) => { if (el.dataset.plays === String(t.id)) el.textContent = "▶ " + (t.plays || 0); });
   if (t.id === nowId) paintPlayCount(t);
