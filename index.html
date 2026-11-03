@@ -99,6 +99,28 @@ input[type=file]{display:none}
 #plhead{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:18px 0 6px}
 #plhead h2{margin:0;flex:1;min-width:120px}
 
+/* playlist covers */
+.hart{position:relative}
+.hedit{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;margin:0;padding:0;border:0;outline:0;background:#000b;color:#fff;font-size:9px;text-shadow:2px 2px 0 #000;opacity:0;transition:opacity .12s}
+.hedit svg{width:30px;height:30px}
+.hedit:hover{background:#000b}
+.hedit:active{transform:none}
+.hart:hover .hedit,.hedit:focus-visible{opacity:1}
+@media (hover:none){
+  .hedit{opacity:1;background:transparent;align-items:flex-end;justify-content:flex-end;padding:6px}
+  .hedit:hover{background:transparent}
+  .hedit span{display:none}
+  .hedit svg{width:16px;height:16px;padding:5px;background:#000c;border:2px solid #000}
+}
+.pleRow{flex-wrap:nowrap;gap:14px;align-items:flex-start;margin-top:10px}
+.plecov{flex:none;width:120px;height:120px;border:4px solid #000;background:#000;cursor:pointer;overflow:hidden}
+.plecov img{width:100%;height:100%;object-fit:cover;display:block;image-rendering:auto}
+.plecov .disc,.plecov .disc svg,.plecov .cover{width:100%;height:100%;border:0}
+.pleRow input{margin-top:0}
+.sthumb{flex:none;width:28px;height:28px;display:block}
+.sthumb .cover,.sthumb .disc,.sthumb .disc svg{width:28px;height:28px;border-width:1px}
+.sitem{padding:6px 8px}
+
 /* ---------- Spotify-style list view ---------- */
 .hero{position:relative;display:flex;align-items:flex-end;gap:20px;padding:22px 20px 18px;margin:0 0 0;background:linear-gradient(180deg,#4f8f2c 0%,#2f5a1c 60%,#22301d 100%);border:4px solid #000}
 .hart{flex:none;width:180px;height:180px;background:#000;border:4px solid #000;box-shadow:6px 6px 0 #0007}
@@ -197,6 +219,7 @@ input[type=file]{display:none}
 .rbtn:focus-visible{outline:3px solid var(--gold)}
 .rbtn svg{width:16px;height:16px;display:block}
 .rbtn.rdel:hover{color:#ff6b5b}
+.hbtn svg{width:22px;height:22px}
 
 .overlay{position:fixed;inset:0;background:#000b;display:block;overflow:auto;padding:8vh 12px calc(env(safe-area-inset-bottom) + var(--ph) + 20px);z-index:10}
 .overlay .panel{width:100%;max-width:460px;margin:0 auto}
@@ -593,6 +616,24 @@ body.full-open{overflow:hidden}
   </div>
 </div>
 
+<!-- Edit playlist: cover + name -->
+<div id="plEditModal" class="overlay hide">
+  <div class="panel">
+    <div>Edit playlist</div>
+    <div class="row pleRow">
+      <label id="plePrev" class="plecov" for="pleImg" title="Choose image"></label>
+      <div class="grow" style="min-width:0">
+        <input id="pleName" type="text" maxlength="60" placeholder="playlist name" aria-label="Playlist name">
+        <label class="btn" for="pleImg">Choose image</label>
+        <input id="pleImg" type="file" accept="image/*">
+        <button id="pleNoCover">Remove cover</button>
+      </div>
+    </div>
+    <div class="msg" id="pleMsg"></div>
+    <div class="row"><button class="go" id="pleSave">Save</button><button id="pleCancel">Cancel</button></div>
+  </div>
+</div>
+
 <!-- Edit song -->
 <div id="editModal" class="overlay hide">
   <div class="panel">
@@ -735,6 +776,10 @@ grant execute on function public.bump_play(text) to authenticated;
 ARTIST NAMES NEED THIS. Run once:
 
 alter table public.tracks add column if not exists artist text;
+
+PLAYLIST COVERS NEED THIS. Run once:
+
+alter table public.playlists add column if not exists cover_path text;
 
 -- after adding columns, refresh the API so it sees them right away
 notify pgrst, 'reload schema';
@@ -1055,10 +1100,16 @@ function trackRow(t, i, extra, canEdit) {
 }
 const listHead = () => '<div class="lhead" aria-hidden="true"><span class="tn">#</span><span></span><span>Title</span><span class="tdate">Date added</span><span class="plays">Plays</span><span></span></div>';
 
+// playlist cover: its own picture, else its first song's cover, else a pixel disc
+const plCoverUrl = (p) => sb.storage.from("music").getPublicUrl(p.cover_path).data.publicUrl;
+function plArtHTML(p) {
+  if (p.cover_path) return `<span class="cover"><img src="${plCoverUrl(p)}" alt="" loading="lazy" decoding="async"></span>`;
+  const first = p.track_ids.map((id) => all.find((t) => t.id === id)).find((t) => t && t.cover_path);
+  return first ? `<span class="cover"><img src="${coverUrl(first)}" alt="" loading="lazy" decoding="async"></span>` : discHTML({ id: p.id });
+}
 function plRow(p) {
   const n = p.track_ids.length, mine = p.user_id === me.id;
-  const first = p.track_ids.map((id) => all.find((t) => t.id === id)).find((t) => t && t.cover_path);
-  return `<div class="track trow prow" tabindex="0" data-pl="${esc(p.id)}">${first ? thumbHTML(first) : discHTML({ id: p.id })}
+  return `<div class="track trow prow" tabindex="0" data-pl="${esc(p.id)}">${plArtHTML(p)}
     <span class="meta"><span class="t">${esc(p.name)}</span><span class="by">Playlist · ${n} song${n === 1 ? "" : "s"}${mine ? "" : " · by " + esc(p.owner)}</span></span>
     <span class="tact">${mine ? `<button class="rbtn rdel" data-dpl="${esc(p.id)}" aria-label="Delete playlist" title="Delete playlist">${ICON("ic-x")}</button>` : ""}</span></div>`;
 }
@@ -1138,12 +1189,11 @@ function drawLists() {
     if (!p) { view = "pls"; return drawLists(); }
     const mine = p.user_id === me.id;
     shown = p.track_ids.map((id) => all.find((t) => t.id === id)).filter(Boolean);
-    const cov = shown.find((t) => t.cover_path);
     html = heroHTML({
       kind: mine ? "Playlist" : "Shared playlist", title: p.name, back: true, canPlay: shown.length > 0,
-      art: cov ? `<span class="cover"><img src="${coverUrl(cov)}" alt=""></span>` : discHTML({ id: p.id }),
+      art: plArtHTML(p) + (mine ? `<button class="hedit" data-pledit="${esc(p.id)}" aria-label="Change playlist cover" title="Change cover">${ICON("ic-pen")}<span>Choose photo</span></button>` : ""),
       meta: `<b>${esc(p.owner)}</b> · ${shown.length} song${shown.length === 1 ? "" : "s"} · ${plays(shown)} listens`,
-      extras: mine ? `<span class="grow"></span><button class="del" data-dpl="${esc(p.id)}" aria-label="Delete playlist" title="Delete playlist">X</button>` : "",
+      extras: mine ? `<button class="rbtn hbtn" data-pledit="${esc(p.id)}" aria-label="Edit playlist" title="Edit playlist (cover, name)">${ICON("ic-pen")}</button><span class="grow"></span><button class="rbtn rdel hbtn" data-dpl="${esc(p.id)}" aria-label="Delete playlist" title="Delete playlist">${ICON("ic-x")}</button>` : "",
     });
     if (!shown.length) html += `<div class="empty">${mine ? "Empty. Use + on any song in the Library to add it here." : "Nothing in here yet."}</div>`;
     else html += swipeHint + listHead();
@@ -1158,7 +1208,7 @@ function drawLists() {
 function drawSide() {
   if (!me) return;
   const active = (id) => !query && view === "pl:" + id;
-  const item = (p) => `<button class="sitem${active(p.id) ? " go" : ""}" data-spl="${esc(p.id)}" title="${esc(p.name)}"><span class="t">${esc(p.name)}</span><span class="sub">${p.track_ids.length}</span></button>`;
+  const item = (p) => `<button class="sitem${active(p.id) ? " go" : ""}" data-spl="${esc(p.id)}" title="${esc(p.name)}"><span class="sthumb">${plArtHTML(p)}</span><span class="t">${esc(p.name)}</span><span class="sub">${p.track_ids.length}</span></button>`;
   const mine = myLists(), others = lists.filter((p) => p.user_id !== me.id);
   $("navLib").classList.toggle("go", !query && view === "lib");
   $("sideMine").innerHTML = mine.length ? mine.map(item).join("") : '<div class="empty sub">None yet.</div>';
@@ -1195,6 +1245,7 @@ $("lists").onclick = (e) => {
     if (b.id === "mk") return createFromInput($("plName"));
     if (b.dataset.back !== undefined) return go("pls");
     if (b.dataset.playall !== undefined) { if (shown.length) pickPlay(shown[0], shown, true); return; }
+    if (b.dataset.pledit) { e.stopPropagation(); return openPlEdit(lists.find((x) => x.id === b.dataset.pledit)); }
     if (b.dataset.shufplay !== undefined) {
       if (!shown.length) return;
       if (jam.role === "guest") { jamCmd({ cmd: "list", ids: shuffled(shown, null).map((x) => x.id) }); toast("Shuffling this list for the Jam"); return; }
@@ -1316,10 +1367,73 @@ async function deletePlaylist(id) {
   if (!p || !confirm("Delete playlist " + p.name + "?")) return;
   const { error } = await sb.from("playlists").delete().eq("id", id);
   if (error) { say(error.message); return; }
+  if (p.cover_path) sb.storage.from("music").remove([p.cover_path]);
   lists = lists.filter((x) => x.id !== id);
   sfxDrop();
   drawLists();
 }
+
+/* ---------- edit playlist: cover + name ---------- */
+let plEditing = null, plPending = null, plDrop = false, plUrl = null;
+function paintPlePrev() {
+  const p = plEditing; if (!p) return;
+  $("plePrev").innerHTML = plUrl ? `<img src="${plUrl}" alt="">`
+    : plDrop ? plArtHTML({ ...p, cover_path: null })
+    : plArtHTML(p);
+  $("pleNoCover").classList.toggle("hide", !(plUrl || (p.cover_path && !plDrop)));
+}
+function openPlEdit(p) {
+  if (!p || p.user_id !== me.id) return;
+  plEditing = p; plPending = null; plDrop = false;
+  if (plUrl) { URL.revokeObjectURL(plUrl); plUrl = null; }
+  $("pleName").value = p.name;
+  $("pleMsg").textContent = "";
+  $("pleSave").disabled = false;
+  paintPlePrev();
+  openOv("plEditModal");
+}
+$("pleImg").onchange = async (e) => {
+  const f = e.target.files[0]; e.target.value = "";
+  if (!f) return;
+  try {
+    plPending = await resizeImage(f, 480); plDrop = false;
+    if (plUrl) URL.revokeObjectURL(plUrl);
+    plUrl = URL.createObjectURL(plPending);
+    $("pleMsg").textContent = ""; paintPlePrev();
+  } catch (err) { $("pleMsg").textContent = err.message; }
+};
+$("pleNoCover").onclick = () => { plPending = null; plDrop = true; if (plUrl) { URL.revokeObjectURL(plUrl); plUrl = null; } paintPlePrev(); };
+$("pleCancel").onclick = () => closeOv("plEditModal");
+$("pleName").onkeydown = (e) => { if (e.key === "Enter") $("pleSave").click(); };
+$("pleSave").onclick = async () => {
+  const p = plEditing; if (!p) return;
+  const name = $("pleName").value.trim();
+  if (!name) { $("pleMsg").textContent = "Give the playlist a name."; return; }
+  const patch = { name };
+  $("pleSave").disabled = true; $("pleMsg").textContent = "Saving...";
+  let newPath = null;
+  if (plPending) {
+    newPath = `${me.id}/plcover_${Date.now()}.jpg`;
+    const up = await sb.storage.from("music").upload(newPath, plPending, { contentType: "image/jpeg" });
+    if (up.error) { $("pleMsg").textContent = "Cover upload failed: " + up.error.message; $("pleSave").disabled = false; return; }
+    patch.cover_path = newPath;
+  } else if (plDrop) patch.cover_path = null;
+  const { error } = await sb.from("playlists").update(patch).eq("id", p.id);
+  if (error) {
+    if (newPath) sb.storage.from("music").remove([newPath]);
+    $("pleMsg").textContent = /cover_path|schema cache|does not exist/i.test(error.message)
+      ? "Playlist covers need one line of setup SQL in Supabase (see the comment at the top of the script): alter table public.playlists add column if not exists cover_path text;"
+      : error.message;
+    $("pleSave").disabled = false;
+    return;
+  }
+  if ((newPath || plDrop) && p.cover_path) sb.storage.from("music").remove([p.cover_path]);
+  Object.assign(p, patch);
+  if (plUrl) { URL.revokeObjectURL(plUrl); plUrl = null; }
+  closeOv("plEditModal");
+  sfxDing(); toast("Playlist updated");
+  drawLists();
+};
 
 function openPicker(t) {
   if (!t) return;
