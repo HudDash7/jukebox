@@ -1,6 +1,6 @@
 {
-  "name": "Jukebox",
-  "short_name": "Jukebox",
+  "name": "Budsbox",
+  "short_name": "Budsbox",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

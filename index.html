@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Jukebox">
+<meta name="apple-mobile-web-app-title" content="Budsbox">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="application-name" content="Jukebox">
+<meta name="application-name" content="Budsbox">
 <meta name="theme-color" content="#5a9e32">
-<title>Jukebox</title>
+<title>Budsbox</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
@@ -453,7 +453,7 @@ body.full-open{overflow:hidden}
         <button id="logout">Log out</button>
       </div>
     </div>
-    <h1>JUKEBOX</h1>
+    <h1>BUDSBOX</h1>
     <span class="spacer"></span>
     <div id="searchBox" class="hide">
       <input id="q" type="search" placeholder="Search songs" aria-label="Search songs" autocomplete="off" enterkeyhint="search">
@@ -1395,7 +1395,7 @@ function setMeta(t) {
   if (!("mediaSession" in navigator) || !t) return;
   try {
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: t.title, artist: artistOf(t), album: "Jukebox",
+      title: t.title, artist: artistOf(t), album: "Budsbox",
       artwork: t.cover_path ? [{ src: coverUrl(t), sizes: "320x320", type: "image/jpeg" }] : [],
     });
   } catch (e) {}
@@ -1936,9 +1936,9 @@ $("jamJoin").onclick = async () => {
 $("jamLeave").onclick = () => jamLeave(false);
 $("jamShare").onclick = async () => {
   const url = location.origin + location.pathname + "?jam=" + jam.code;
-  const text = "Join my Jam on Jukebox! Code: " + jam.code;
+  const text = "Join my Jam on Budsbox! Code: " + jam.code;
   try {
-    if (navigator.share) { await navigator.share({ title: "Jukebox Jam", text, url }); return; }
+    if (navigator.share) { await navigator.share({ title: "Budsbox Jam", text, url }); return; }
   } catch (e) { if (e && e.name === "AbortError") return; }
   try { await navigator.clipboard.writeText(url); toast("Invite link copied"); }
   catch (e) { $("jamMsg").textContent = "Invite link: " + url; }
@@ -2021,18 +2021,18 @@ function renderLyrics() {
   $("npMore").classList.toggle("hide", !hasLyr || t.lyrics.trim().split("\n").length <= 5);
   $("npMore").textContent = "Show all";
   $("npEdit").classList.toggle("hide", !canEdit);
-  // about the artist: how much of their music is in the Jukebox
+  // about the artist: how much of their music is in Budsbox
   const art = t ? artistOf(t) : "";
   const theirs = t && t.artist ? all.filter((x) => artistOf(x) === art) : [];
   $("npArtist").textContent = t ? art : "";
   $("npArtistStats").textContent = !t ? "" : t.artist
-    ? `${theirs.length} song${theirs.length === 1 ? "" : "s"} in the Jukebox \u00B7 ${theirs.reduce((n, x) => n + (x.plays || 0), 0)} listens`
+    ? `${theirs.length} song${theirs.length === 1 ? "" : "s"} in Budsbox \u00B7 ${theirs.reduce((n, x) => n + (x.plays || 0), 0)} listens`
     : "No artist set for this song yet.";
   $("npArtistMore").classList.toggle("hide", !(t && t.artist && theirs.length > 1));
   // credits (the uploader only shows if you turned on "Song credits" in settings)
   $("npCredits").innerHTML = !t ? '<div class="sub">Nothing playing.</div>'
     : `<div class="credit"><b>${esc(art)}</b><span>Main artist</span></div>` +
-      (ab ? `<div class="credit"><b>${esc(t.uploader || "someone")}</b><span>Added to Jukebox</span></div>` : "") +
+      (ab ? `<div class="credit"><b>${esc(t.uploader || "someone")}</b><span>Added to Budsbox</span></div>` : "") +
       `<div class="credit"><b>\u25B6 ${t.plays || 0}</b><span>Listen${(t.plays || 0) === 1 ? "" : "s"}</span></div>`;
   paintNpNext();
   paintPlayCount(t);

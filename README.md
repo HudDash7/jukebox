@@ -1,4 +1,4 @@
-# Jukebox
+# Budsbox
 
 A Minecraft-styled music player with a Spotify-style layout: shared library, playlists, lyrics, album covers, shuffle/repeat, and "Jam" listen-together.
 
