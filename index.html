@@ -959,7 +959,7 @@ JAM (listen together) needs no SQL: it uses Supabase Realtime broadcast + presen
 */
 
 const $ = (id) => document.getElementById(id);
-const APP_BUILD = "b1"; // bumped on every deploy
+const APP_BUILD = "b2"; // bumped on every deploy
 async function checkUpdate() {
   try {
     const r = await fetch(location.pathname + "?v=" + Date.now(), { cache: "no-store" });
@@ -1952,7 +1952,7 @@ $("play").onclick = () => {
     return;
   }
   if (nowId == null) { if (shown.length) playTrack(shown[0], shown); else if (all.length) playTrack(all[0], all); return; }
-  audio.paused ? audio.play().catch(() => {}) : audio.pause();
+  audio.paused ? audio.play().catch(() => {}) : pauseByUser();
 };
 $("prev").onclick = () => step(-1);
 $("next").onclick = () => step(1);
@@ -1962,7 +1962,7 @@ function initMediaSession() {
   if (!("mediaSession" in navigator)) return;
   const ms = navigator.mediaSession;
   const on = (a, f) => { try { ms.setActionHandler(a, f); } catch (e) {} };
-  on("play", () => { if (nowId == null) { if (all.length) playTrack(all[0], all); } else audio.play().catch(() => {}); });
+  on("play", () => { if (nowId == null) { if (all.length) playTrack(all[0], all); } else resumePlay(); });
   on("pause", () => audio.pause());
   on("previoustrack", () => step(-1));
   on("nexttrack", () => step(1));
@@ -1985,12 +1985,46 @@ function syncPos() {
 }
 initMediaSession();
 
+/* ---------- resume after AirPods come back ----------
+   iPhone Safari pauses web audio by itself when an AirPod comes out (or Bluetooth drops, or a call
+   comes in), and doesn't always send "play" back when it goes in again. So: remember pauses the
+   person didn't ask for, and resume when the phone reports its audio device or session is back. */
+let userPause = false, resumeHint = null, lastPos = 0;
+const RESUME_WINDOW = 20 * 60 * 1000; // a rest between sets
+function pauseByUser() { resumeHint = null; if (audio.paused) return; userPause = true; audio.pause(); }
+function resumePlay() {
+  if (nowId == null) return;
+  const t = curTrack();
+  // Safari sometimes drops the track while paused in the background: load it again at the same spot
+  if (t && (audio.error || audio.readyState === 0 || !audio.getAttribute("src") || audio.currentSrc.startsWith("data:"))) {
+    audio.src = urlFor(t);
+    audio.addEventListener("loadedmetadata", () => { try { audio.currentTime = Math.min(lastPos, audio.duration || lastPos); } catch (e) {} }, { once: true });
+  }
+  audio.play().catch(() => setTimeout(() => { if (audio.paused) audio.play().catch(() => {}); }, 300));
+}
+function tryAutoResume() {
+  if (!resumeHint || !audio.paused || nowId == null || jam.role === "guest") return;
+  if (Date.now() - resumeHint > RESUME_WINDOW) { resumeHint = null; return; }
+  resumeHint = null;
+  resumePlay();
+}
+try { navigator.mediaDevices && navigator.mediaDevices.addEventListener("devicechange", () => setTimeout(tryAutoResume, 400)); } catch (e) {}
+try {
+  if (navigator.audioSession && "onstatechange" in navigator.audioSession) {
+    navigator.audioSession.addEventListener("statechange", () => { if (navigator.audioSession.state !== "interrupted") setTimeout(tryAutoResume, 400); });
+  }
+} catch (e) {}
+
 audio.onplay = () => {
+  resumeHint = null;
   paintPlayBtn();
   if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "playing";
   markNow(); syncPos(); jamPush();
 };
 audio.onpause = () => {
+  // a pause nobody asked for (AirPod out, Bluetooth drop, call): remember to pick it back up
+  if (!userPause && nowId != null && !audio.ended) resumeHint = Date.now();
+  userPause = false;
   paintPlayBtn();
   if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
   markNow(); jamPush();
@@ -2020,6 +2054,7 @@ audio.ontimeupdate = () => {
   $("tDur").textContent = fmt(audio.duration);
   // listen counter: count real playback time, so skipping around can't fake it
   const ct = audio.currentTime, dt = ct - lastT;
+  if (ct > 0) lastPos = ct;
   if (dt > 0 && dt < 4 && !audio.paused) { listened += dt; pendingSec += dt; }
   lastT = ct;
   if (pendingSec >= 60) flushListen(); // save long listens as they go
@@ -2255,7 +2290,7 @@ function jamHandle(p) {
   if (p.id != null && !t && !p.retried) { loadAll().then(() => jamHandle({ ...p, retried: true })); return; } // a song uploaded mid-Jam
   switch (p.cmd) {
     case "play": if (nowId == null) { if (all.length) playTrack(all[0], all); } else audio.play().catch(() => {}); break;
-    case "pause": audio.pause(); break;
+    case "pause": pauseByUser(); break;
     case "next": step(1); break;
     case "prev": step(-1); break;
     case "seek": if (isFinite(audio.duration)) audio.currentTime = Math.max(0, Math.min(audio.duration, +p.t || 0)); break;
@@ -2290,7 +2325,7 @@ function jamApply(s) {
   ctxId = t ? t.id : null;
   const sig = JSON.stringify([s.trackId, s.up, s.next]);
   const changed = sig !== jam.sig; jam.sig = sig;
-  if (!t) { if (!audio.paused) audio.pause(); if (nowId != null) { nowId = null; setNow(); } if (changed) { updateQBtn(); if (isOpen("qModal")) renderQueue(); } return; }
+  if (!t) { if (!audio.paused) pauseByUser(); if (nowId != null) { nowId = null; setNow(); } if (changed) { updateQBtn(); if (isOpen("qModal")) renderQueue(); } return; }
   if (nowId !== t.id) {
     nowId = t.id; newSession();
     audio.src = urlFor(t);
@@ -2304,7 +2339,7 @@ function jamApply(s) {
   }
   if (isFinite(audio.duration) && Math.abs(audio.currentTime - jamWant()) > 2) audio.currentTime = Math.min(jamWant(), audio.duration);
   if (s.playing && audio.paused) jamPlay();
-  else if (!s.playing && !audio.paused) audio.pause();
+  else if (!s.playing && !audio.paused) pauseByUser();
   if (changed) { updateQBtn(); if (isOpen("qModal")) renderQueue(); }
 }
 
