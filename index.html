@@ -473,6 +473,11 @@ body.full-open{overflow:hidden}
 #upd.hide{display:none!important}
 
 /* artists */
+.claimbtn{padding:8px 14px;font-size:10px;border-radius:999px!important}
+.arbio p{margin:0 4px 6px;font-size:10px;line-height:2;color:#dfe7da;white-space:pre-wrap;word-break:break-word;max-width:640px}
+.npbio{font-size:9px;line-height:1.9;color:#dfe7da;margin-top:6px;white-space:pre-wrap;word-break:break-word}
+.npbio:empty{display:none}
+.plecov.round{border-radius:50%!important}
 .alink{cursor:pointer}
 @media (hover:hover) and (pointer:fine){.alink:hover{text-decoration:underline;color:#fff}}
 .alinkish{cursor:pointer}
@@ -656,6 +661,7 @@ button,.btn,input[type=text],input[type=email],input[type=password],input[type=s
       <div class="npch"><h3>About the artist</h3></div>
       <div id="npArtist" class="npbig"></div>
       <div id="npArtistStats" class="sub"></div>
+      <div id="npArtistBio" class="npbio"></div>
       <button class="nplink" id="npArtistMore">Go to artist</button>
     </div>
     <div class="npcard">
@@ -755,6 +761,25 @@ button,.btn,input[type=text],input[type=email],input[type=password],input[type=s
     </div>
     <div id="lbBody"></div>
     <div class="row"><button class="go" id="lbClose">Done</button></div>
+  </div>
+</div>
+
+<!-- Edit artist profile: picture + bio (only whoever claimed the artist) -->
+<div id="arEditModal" class="overlay hide">
+  <div class="panel">
+    <div id="areTitle">Artist profile</div>
+    <div class="row pleRow">
+      <label id="arePrev" class="plecov round" for="areImg" title="Choose image"></label>
+      <div class="grow" style="min-width:0">
+        <label class="btn" for="areImg">Choose photo</label>
+        <input id="areImg" type="file" accept="image/*">
+        <button id="areNoPic">Remove photo</button>
+      </div>
+    </div>
+    <h3>Bio</h3>
+    <textarea id="areBio" rows="4" maxlength="400" placeholder="A few words about this artist (optional)"></textarea>
+    <div class="msg" id="areMsg"></div>
+    <div class="row"><button class="go" id="areSave">Save</button><button id="areCancel">Cancel</button><span class="grow"></span><button class="del" id="areRelease">Give up claim</button></div>
   </div>
 </div>
 
@@ -957,6 +982,26 @@ alter table public.listens enable row level security;
 create policy "listens read" on public.listens for select to authenticated using (true);
 create policy "listens insert own" on public.listens for insert to authenticated with check (auth.uid() = user_id);
 
+ARTIST PROFILES (claim an artist, picture, bio) NEED THIS. Run once:
+
+create table if not exists public.artists (
+  name text primary key,
+  picture_path text,
+  bio text,
+  claimed_by uuid references auth.users(id) on delete cascade,
+  claimed_name text,
+  updated_at timestamptz not null default now()
+);
+alter table public.artists enable row level security;
+create policy "artists read" on public.artists for select to authenticated using (true);
+-- claim = create the row as yourself, only if you uploaded a song by that artist (first claim wins)
+create policy "artists claim" on public.artists for insert to authenticated
+  with check (claimed_by = auth.uid() and exists (
+    select 1 from public.tracks t where trim(t.artist) = artists.name and t.user_id = auth.uid()));
+create policy "artists edit own" on public.artists for update to authenticated
+  using (claimed_by = auth.uid()) with check (claimed_by = auth.uid());
+create policy "artists release own" on public.artists for delete to authenticated using (claimed_by = auth.uid());
+
 PLAYLIST COVERS NEED THIS. Run once:
 
 alter table public.playlists add column if not exists cover_path text;
@@ -968,7 +1013,7 @@ JAM (listen together) needs no SQL: it uses Supabase Realtime broadcast + presen
 */
 
 const $ = (id) => document.getElementById(id);
-const APP_BUILD = "b3"; // bumped on every deploy
+const APP_BUILD = "b4"; // bumped on every deploy
 async function checkUpdate() {
   try {
     const r = await fetch(location.pathname + "?v=" + Date.now(), { cache: "no-store" });
@@ -1239,10 +1284,13 @@ $("nameSave").onclick = async () => {
 
 /* ---------- data ---------- */
 async function loadAll() {
-  const [t, p] = await Promise.all([
+  const [t, p, ar] = await Promise.all([
     sb.from("tracks").select("*").order("created_at", { ascending: false }),
     sb.from("playlists").select("*").order("created_at", { ascending: true }),
+    sb.from("artists").select("*"),
   ]);
+  if (ar.error) { artistInfo = new Map(); artistsNoTable = /artists|schema cache|does not exist/i.test(ar.error.message || ""); }
+  else { artistInfo = new Map((ar.data || []).map((r) => [r.name, r])); artistsNoTable = false; }
   if (t.error) { say(t.error.message); return; }
   all = t.data || [];
   // keep queued songs pointing at fresh rows (plays, lyrics, covers)
@@ -1278,7 +1326,17 @@ function artistNames() {
   for (const t of all) if (hasArtist(t)) { const n = artistOf(t), c = String(t.created_at || ""); if (!latest.has(n) || c > latest.get(n)) latest.set(n, c); }
   return [...latest.entries()].sort((a, b) => b[1].localeCompare(a[1])).map(([n]) => n);
 }
+let artistInfo = new Map(), artistsNoTable = false;
+const artistPicUrl = (r) => sb.storage.from("music").getPublicUrl(r.picture_path).data.publicUrl;
+const myArtist = (name) => artistInfo.get(name)?.claimed_by === me.id;
+const canClaim = (name) => !artistInfo.has(name) && songsBy(name).some((t) => t.user_id === me.id);
 function artistArt(name) {
+  const r = artistInfo.get(name);
+  if (r && r.picture_path) return `<span class="cover"><img src="${artistPicUrl(r)}" alt="" loading="lazy" decoding="async"></span>`;
+  return artistFallbackArt(name);
+}
+// no profile picture: one of their album covers, else a pixel disc
+function artistFallbackArt(name) {
   const cov = songsBy(name).find((t) => t.cover_path);
   return cov ? `<span class="cover"><img src="${coverUrl(cov)}" alt="" loading="lazy" decoding="async"></span>` : discHTML({ id: "artist:" + name });
 }
@@ -1423,12 +1481,15 @@ function drawLists() {
     const name = view.slice(3), songs = songsBy(name);
     if (!songs.length) { view = "pls"; return drawLists(); }
     shown = [...songs].sort((a, b) => (b.plays || 0) - (a.plays || 0) || String(b.created_at || "").localeCompare(String(a.created_at || "")));
+    const info = artistInfo.get(name), mineA = myArtist(name);
     html = heroHTML({
-      kind: "Artist", title: name, back: true, canPlay: true,
-      art: artistArt(name),
-      meta: `${songs.length} song${songs.length === 1 ? "" : "s"} \u00B7 ${plays(songs)} listens`,
-      extras: "",
+      kind: info ? "\u2713 Verified artist" : "Artist", title: name, back: true, canPlay: true,
+      art: artistArt(name) + (mineA ? `<button class="hedit" data-aredit="1" aria-label="Change artist picture" title="Change picture">${ICON("ic-pen")}<span>Choose photo</span></button>` : ""),
+      meta: `${songs.length} song${songs.length === 1 ? "" : "s"} \u00B7 ${plays(songs)} listens` + (info ? ` \u00B7 claimed by <b>${esc(info.claimed_name || "someone")}</b>` : ""),
+      extras: mineA ? `<button class="rbtn hbtn" data-aredit="1" aria-label="Edit artist profile" title="Edit artist profile (picture, bio)">${ICON("ic-pen")}</button>`
+        : canClaim(name) ? '<button class="btn claimbtn" data-arclaim="1">Claim artist</button>' : "",
     }).replace('<div class="hart">', '<div class="hart round">');
+    if (info && info.bio && info.bio.trim()) html += `<div class="arbio"><h2 class="sech">About</h2><p>${esc(info.bio.trim())}</p></div>`;
     html += '<h2 class="sech">Popular</h2>' + swipeHint + listHead();
     shown.forEach((t, i) => { html += trackRow(t, i, "", true); });
   } else {
@@ -1532,6 +1593,8 @@ $("lists").onclick = (e) => {
     if (b.dataset.back !== undefined) return go(prevView && prevView !== view ? prevView : "pls");
     if (b.dataset.playall !== undefined) { if (shown.length) pickPlay(shown[0], shown, true); return; }
     if (b.dataset.pledit) { e.stopPropagation(); return openPlEdit(lists.find((x) => x.id === b.dataset.pledit)); }
+    if (b.dataset.arclaim) return claimArtist(view.slice(3));
+    if (b.dataset.aredit) return openArEdit(view.slice(3));
     if (b.dataset.shufplay !== undefined) {
       if (!shown.length) return;
       if (jam.role === "guest") { jamCmd({ cmd: "list", ids: shuffled(shown, null).map((x) => x.id) }); toast("Shuffling this list for the Jam"); return; }
@@ -1669,6 +1732,82 @@ async function deletePlaylist(id) {
   sfxDrop();
   drawLists();
 }
+
+/* ---------- artist profiles: claim, picture, bio ---------- */
+const ARTIST_SQL_MSG = 'Artist profiles need one-time setup: run the "ARTIST PROFILES" SQL from the top of the script in Supabase > SQL Editor.';
+async function claimArtist(name) {
+  if (artistsNoTable) { alert(ARTIST_SQL_MSG); return; }
+  if (!canClaim(name)) { toast("Only someone who uploaded this artist's songs can claim them"); return; }
+  if (!confirm(`Claim ${name}? You'll be the only one who can change their picture and bio.`)) return;
+  const { data, error } = await sb.from("artists").insert({ name, claimed_by: me.id, claimed_name: myName() }).select().single();
+  if (error) {
+    if (/duplicate|unique|23505/i.test((error.code || "") + error.message)) toast("Someone already claimed this artist");
+    else if (/artists|schema cache|does not exist/i.test(error.message)) alert(ARTIST_SQL_MSG);
+    else say(error.message);
+    await loadAll(); return;
+  }
+  artistInfo.set(name, data || { name, claimed_by: me.id, claimed_name: myName() });
+  sfxDing(); toast("You claimed " + name);
+  drawLists(); openArEdit(name);
+}
+let arEditing = null, arPending = null, arDrop = false, arUrl = null;
+function paintArePrev() {
+  const name = arEditing; if (name == null) return;
+  const r = artistInfo.get(name) || {};
+  $("arePrev").innerHTML = arUrl ? `<img src="${arUrl}" alt="">`
+    : (!arDrop && r.picture_path) ? `<img src="${artistPicUrl(r)}" alt="">`
+    : artistFallbackArt(name);
+  $("areNoPic").classList.toggle("hide", !(arUrl || (r.picture_path && !arDrop)));
+}
+function openArEdit(name) {
+  if (!myArtist(name)) return;
+  arEditing = name; arPending = null; arDrop = false;
+  if (arUrl) { URL.revokeObjectURL(arUrl); arUrl = null; }
+  $("areTitle").textContent = "Artist profile · " + name;
+  $("areBio").value = artistInfo.get(name)?.bio || "";
+  $("areMsg").textContent = ""; $("areSave").disabled = false;
+  paintArePrev(); openOv("arEditModal");
+}
+$("areImg").onchange = async (e) => {
+  const f = e.target.files[0]; e.target.value = "";
+  if (!f) return;
+  try {
+    arPending = await resizeImage(f, 480); arDrop = false;
+    if (arUrl) URL.revokeObjectURL(arUrl);
+    arUrl = URL.createObjectURL(arPending); $("areMsg").textContent = ""; paintArePrev();
+  } catch (err) { $("areMsg").textContent = err.message; }
+};
+$("areNoPic").onclick = () => { arPending = null; arDrop = true; if (arUrl) { URL.revokeObjectURL(arUrl); arUrl = null; } paintArePrev(); };
+$("areCancel").onclick = () => closeOv("arEditModal");
+$("areSave").onclick = async () => {
+  const name = arEditing, r = artistInfo.get(name); if (!r) return;
+  const patch = { bio: $("areBio").value.trim() || null, claimed_name: myName(), updated_at: new Date().toISOString() };
+  $("areSave").disabled = true; $("areMsg").textContent = "Saving...";
+  let newPath = null;
+  if (arPending) {
+    newPath = `${me.id}/artist_${Date.now()}.jpg`;
+    const up = await sb.storage.from("music").upload(newPath, arPending, { contentType: "image/jpeg" });
+    if (up.error) { $("areMsg").textContent = "Photo upload failed: " + up.error.message; $("areSave").disabled = false; return; }
+    patch.picture_path = newPath;
+  } else if (arDrop) patch.picture_path = null;
+  const { error } = await sb.from("artists").update(patch).eq("name", name);
+  if (error) { if (newPath) sb.storage.from("music").remove([newPath]); $("areMsg").textContent = error.message; $("areSave").disabled = false; return; }
+  if ((newPath || arDrop) && r.picture_path) sb.storage.from("music").remove([r.picture_path]);
+  Object.assign(r, patch);
+  if (arUrl) { URL.revokeObjectURL(arUrl); arUrl = null; }
+  closeOv("arEditModal"); sfxDing(); toast("Artist profile saved");
+  drawLists(); setNow();
+};
+$("areRelease").onclick = async () => {
+  const name = arEditing, r = artistInfo.get(name); if (!r) return;
+  if (!confirm(`Give up your claim on ${name}? Their picture and bio will be removed, and someone else can claim them.`)) return;
+  const { error } = await sb.from("artists").delete().eq("name", name);
+  if (error) { $("areMsg").textContent = error.message; return; }
+  if (r.picture_path) sb.storage.from("music").remove([r.picture_path]);
+  artistInfo.delete(name);
+  closeOv("arEditModal"); sfxDrop(); toast("Claim released");
+  drawLists(); setNow();
+};
 
 /* ---------- edit playlist: cover + name ---------- */
 let plEditing = null, plPending = null, plDrop = false, plUrl = null;
@@ -2218,7 +2357,8 @@ function renderFull() {
   $("fEdit").classList.toggle("hide", !(t && t.user_id === me.id));
   const ab = t ? addedBy(t) : "";
   $("fAbout").innerHTML = t
-    ? `${esc(artistOf(t))}<br>▶ ${t.plays || 0} listen${(t.plays || 0) === 1 ? "" : "s"}` + (ab ? `<br><span class="ab">${esc(ab)}</span>` : "")
+    ? `${esc(artistOf(t))}${artistInfo.get(artistOf(t)) ? " \u2713" : ""}<br>▶ ${t.plays || 0} listen${(t.plays || 0) === 1 ? "" : "s"}` + (ab ? `<br><span class="ab">${esc(ab)}</span>` : "") +
+      (artistInfo.get(artistOf(t))?.bio ? `<br><br>${esc(artistInfo.get(artistOf(t)).bio)}` : "")
     : "";
   $("fJamTag").textContent = $("jamTag").textContent;
   $("fJam").classList.toggle("go", !!jam.role);
@@ -2583,6 +2723,9 @@ function renderLyrics() {
   $("npArtistStats").textContent = !t ? "" : t.artist
     ? `${theirs.length} song${theirs.length === 1 ? "" : "s"} in Budsbox \u00B7 ${theirs.reduce((n, x) => n + (x.plays || 0), 0)} listens`
     : "No artist set for this song yet.";
+  const ainfo = t && hasArtist(t) ? artistInfo.get(art) : null;
+  $("npArtist").textContent = t ? art + (ainfo ? " \u2713" : "") : "";
+  $("npArtistBio").textContent = ainfo && ainfo.bio ? ainfo.bio : "";
   $("npArtistMore").classList.toggle("hide", !(t && hasArtist(t)));
   $("npBy").classList.toggle("alinkish", !!(t && hasArtist(t)));
   // credits (the uploader only shows if you turned on "Song credits" in settings)
