@@ -190,8 +190,9 @@ input[type=file]{display:none}
   .hero:has(.hback) .hart{margin-top:26px}
   .hbar{gap:8px}
   .lhead{display:none}
-  .trow{grid-template-columns:44px minmax(0,1fr) auto;column-gap:10px;padding:6px 4px}
-  .trow .tn,.trow .tdate,.trow .plays{display:none}
+  .trow{grid-template-columns:44px minmax(0,1fr) auto auto;column-gap:8px;padding:6px 4px}
+  .trow .tn,.trow .tdate{display:none}
+  .trow .plays{font-size:9px;color:#b9c2b4;white-space:nowrap}
   .trow .cover,.trow .disc,.trow .disc svg{width:44px;height:44px}
   .sortw .sub{display:none}
 }
@@ -471,6 +472,14 @@ body.full-open{overflow:hidden}
 #upd{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top) + 10px);z-index:30;background:var(--grass);color:#fff;border:3px solid #000;border-radius:999px!important;padding:10px 16px;font-size:9px;box-shadow:0 6px 16px #000a;white-space:nowrap}
 #upd.hide{display:none!important}
 
+/* artists */
+.alink{cursor:pointer}
+@media (hover:hover) and (pointer:fine){.alink:hover{text-decoration:underline;color:#fff}}
+.alinkish{cursor:pointer}
+.alinkish:hover{text-decoration:underline}
+.lcov.round,.hart.round,.hart.round .cover{border-radius:50%!important;overflow:hidden}
+.hart.round{box-shadow:none}
+
 /* ---------- softer corners ---------- */
 :root{--r-sm:4px;--r:8px;--r-lg:12px}
 .panel,.menu,.hero,#np,.npcard,.fcard,#lbBody,#lyText,.jamcode,#toast,.lbpanel{border-radius:var(--r-lg)}
@@ -647,7 +656,7 @@ button,.btn,input[type=text],input[type=email],input[type=password],input[type=s
       <div class="npch"><h3>About the artist</h3></div>
       <div id="npArtist" class="npbig"></div>
       <div id="npArtistStats" class="sub"></div>
-      <button class="nplink" id="npArtistMore">More by this artist</button>
+      <button class="nplink" id="npArtistMore">Go to artist</button>
     </div>
     <div class="npcard">
       <div class="npch"><h3>Credits</h3></div>
@@ -959,7 +968,7 @@ JAM (listen together) needs no SQL: it uses Supabase Realtime broadcast + presen
 */
 
 const $ = (id) => document.getElementById(id);
-const APP_BUILD = "b2"; // bumped on every deploy
+const APP_BUILD = "b3"; // bumped on every deploy
 async function checkUpdate() {
   try {
     const r = await fetch(location.pathname + "?v=" + Date.now(), { cache: "no-store" });
@@ -1258,8 +1267,27 @@ function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<
 
 function creditHTML(t) {
   const ab = addedBy(t);
-  return esc(artistOf(t)) + (ab ? ` <span class="ab">· ${esc(ab)}</span>` : "");
+  const a = t.artist && String(t.artist).trim() ? `<span class="alink" data-artist="${esc(artistOf(t))}">${esc(artistOf(t))}</span>` : esc(artistOf(t));
+  return a + (ab ? ` <span class="ab">· ${esc(ab)}</span>` : "");
 }
+/* ---------- artists ---------- */
+const hasArtist = (t) => !!(t.artist && String(t.artist).trim());
+const songsBy = (name) => all.filter((t) => hasArtist(t) && artistOf(t) === name);
+function artistNames() {
+  const latest = new Map();
+  for (const t of all) if (hasArtist(t)) { const n = artistOf(t), c = String(t.created_at || ""); if (!latest.has(n) || c > latest.get(n)) latest.set(n, c); }
+  return [...latest.entries()].sort((a, b) => b[1].localeCompare(a[1])).map(([n]) => n);
+}
+function artistArt(name) {
+  const cov = songsBy(name).find((t) => t.cover_path);
+  return cov ? `<span class="cover"><img src="${coverUrl(cov)}" alt="" loading="lazy" decoding="async"></span>` : discHTML({ id: "artist:" + name });
+}
+function artistRow(name) {
+  const n = songsBy(name).length;
+  return `<div class="track trow prow arow" tabindex="0" data-ar="${esc(name)}"><span class="lcov round">${artistArt(name)}</span>
+    <span class="meta"><span class="t">${esc(name)}</span><span class="by">Artist · ${n} song${n === 1 ? "" : "s"}</span></span><span class="tact"></span></div>`;
+}
+function goArtist(name) { if (name && songsBy(name).length) { if (fullOpen()) closeFull(); go("ar:" + name); } }
 
 // "3 days ago" style dates for the Date added column
 function ago(iso) {
@@ -1353,8 +1381,10 @@ function drawLists() {
   } else if (query) {
     shown = sorted(all.filter((t) => matches(t, query)));
     const pls = lists.filter((p) => p.name.toLowerCase().includes(query));
+    const ars = artistNames().filter((n) => n.toLowerCase().includes(query));
     html = `<h2 class="sech">Results for "${esc($("q").value.trim())}"</h2>`;
-    if (!shown.length && !pls.length) html += '<div class="empty">No matches. Try a song title or artist.</div>';
+    if (!shown.length && !pls.length && !ars.length) html += '<div class="empty">No matches. Try a song title or artist.</div>';
+    if (ars.length) html += '<h2 class="sech">Artists</h2>' + ars.slice(0, 6).map(artistRow).join("");
     if (shown.length) { html += `<div class="secbar"><h2 class="sech">Songs</h2>${sortSel()}</div>` + swipeHint + listHead(); shown.forEach((t, i) => { html += trackRow(t, i, "", true); }); }
     if (pls.length) { html += '<h2 class="sech">Playlists</h2>'; pls.forEach((p) => { html += plRow(p); }); }
   } else if (view === "lib") {
@@ -1369,7 +1399,7 @@ function drawLists() {
     shown.forEach((t, i) => { html += trackRow(t, i, "", true); });
   } else if (view === "pls") {
     shown = [];
-    const chips = [["all", "All"], ["mine", "By you"], ["shared", "Shared"]];
+    const chips = [["all", "All"], ["mine", "By you"], ["shared", "Shared"], ["artists", "Artists"]];
     let pls = lists.filter((p) => libFilter === "all" || (libFilter === "mine" ? p.user_id === me.id : p.user_id !== me.id));
     pls = libSort === "alpha"
       ? [...pls].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
@@ -1377,12 +1407,30 @@ function drawLists() {
     html = `<div class="secbar deskonly"><h2 class="sech">Your Library</h2></div>
       <div class="chips" role="group" aria-label="Filter">${chips.map(([v, l]) => `<button class="chip${libFilter === v ? " on" : ""}" data-chip="${v}" aria-pressed="${libFilter === v}">${l}</button>`).join("")}</div>
       <div class="lsort"><button class="lsortbtn" data-lsort="1" aria-label="Change sort">${ICON("ic-sort")}${libSort === "alpha" ? "Alphabetical" : "Recents"}</button></div>`;
+    if (libFilter === "artists") {
+      let names = artistNames();
+      if (libSort === "alpha") names = [...names].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+      html += names.length ? names.map(artistRow).join("") : '<div class="empty">No artists yet. Add an artist to a song with the pencil (Edit song).</div>';
+    } else {
     if (libFilter === "all") html += `<div class="track trow prow" tabindex="0" data-golib="1"><span class="lcov"><span class="libtile">${ICON("ic-note")}</span></span>
       <span class="meta"><span class="t">All songs</span><span class="by">Collection · ${all.length} song${all.length === 1 ? "" : "s"}</span></span><span class="tact"></span></div>`;
     html += pls.map(plRow).join("");
     if (!pls.length && libFilter !== "all") html += `<div class="empty">${libFilter === "mine" ? "You haven't made a playlist yet." : "No shared playlists yet."}</div>`;
     html += `<div class="track trow prow" tabindex="0" data-newpl="1"><span class="lcov"><span class="newtile">${ICON("ic-plus")}</span></span>
       <span class="meta"><span class="t">New playlist</span><span class="by">Create one and add songs with \u2295</span></span><span class="tact"></span></div>`;
+    }
+  } else if (view.startsWith("ar:")) {
+    const name = view.slice(3), songs = songsBy(name);
+    if (!songs.length) { view = "pls"; return drawLists(); }
+    shown = [...songs].sort((a, b) => (b.plays || 0) - (a.plays || 0) || String(b.created_at || "").localeCompare(String(a.created_at || "")));
+    html = heroHTML({
+      kind: "Artist", title: name, back: true, canPlay: true,
+      art: artistArt(name),
+      meta: `${songs.length} song${songs.length === 1 ? "" : "s"} \u00B7 ${plays(songs)} listens`,
+      extras: "",
+    }).replace('<div class="hart">', '<div class="hart round">');
+    html += '<h2 class="sech">Popular</h2>' + swipeHint + listHead();
+    shown.forEach((t, i) => { html += trackRow(t, i, "", true); });
   } else {
     const p = lists.find((x) => x.id === view.slice(3));
     if (!p) { view = "pls"; return drawLists(); }
@@ -1427,7 +1475,9 @@ function markNow() {
   $("npArt").classList.toggle("playing", playing && nowId != null);
 }
 
+let prevView = "pls";
 function go(v) {
+  if ((v.startsWith("ar:") || v.startsWith("pl:")) && v !== view) prevView = (query || mSearch) ? "pls" : view;
   clearSearch(); view = v; mSearch = false;
   mtab = v === "lib" ? "home" : "library";
   paintTabs(); drawLists(); $("main").scrollTop = 0; scrollTo(0, 0);
@@ -1479,7 +1529,7 @@ $("lists").onclick = (e) => {
     if (b.dataset.rm !== undefined) return removeFromPlaylist(+b.dataset.rm);
     if (b.dataset.dpl) { e.stopPropagation(); return deletePlaylist(b.dataset.dpl); }
     if (b.id === "mk") return createFromInput($("plName"));
-    if (b.dataset.back !== undefined) return go("pls");
+    if (b.dataset.back !== undefined) return go(prevView && prevView !== view ? prevView : "pls");
     if (b.dataset.playall !== undefined) { if (shown.length) pickPlay(shown[0], shown, true); return; }
     if (b.dataset.pledit) { e.stopPropagation(); return openPlEdit(lists.find((x) => x.id === b.dataset.pledit)); }
     if (b.dataset.shufplay !== undefined) {
@@ -1493,6 +1543,10 @@ $("lists").onclick = (e) => {
   if (b && b.dataset.lsort) { libSort = libSort === "alpha" ? "recent" : "alpha"; try { localStorage.setItem("jukebox_libsort", libSort); } catch (e2) {} return drawLists(); }
   if (e.target.closest("[data-golib]")) return go("lib");
   if (e.target.closest("[data-newpl]")) return openCreate(true);
+  const ar = e.target.closest("[data-ar]");
+  if (ar) return goArtist(ar.dataset.ar);
+  const al = e.target.closest(".alink");
+  if (al && !isPhoneLayout()) return goArtist(al.dataset.artist);
   const pl = e.target.closest("[data-pl]");
   if (pl) return go("pl:" + pl.dataset.pl);
   const r = e.target.closest(".track[data-i]");
@@ -1503,6 +1557,7 @@ $("lists").onkeydown = (e) => {
   if (e.key !== "Enter" || !e.target.classList.contains("track")) return;
   if (e.target.dataset.golib) go("lib");
   else if (e.target.dataset.newpl) openCreate(true);
+  else if (e.target.dataset.ar) goArtist(e.target.dataset.ar);
   else if (e.target.dataset.pl) go("pl:" + e.target.dataset.pl);
   else pickPlay(shown[+e.target.dataset.i], shown);
 };
@@ -1516,7 +1571,7 @@ function pickPlay(t, list, wholeList) {
   }
   // "Playing from" label for the full-screen player
   const pl = view.startsWith("pl:") && lists.find((x) => x.id === view.slice(3));
-  ctxName = query ? 'Search "' + $("q").value.trim() + '"' : pl ? pl.name : "Library";
+  ctxName = query ? 'Search "' + $("q").value.trim() + '"' : pl ? pl.name : view.startsWith("ar:") ? view.slice(3) : "Library";
   playTrack(t, list);
 }
 
@@ -2157,6 +2212,7 @@ function renderFull() {
   $("fArt").innerHTML = t ? (t.cover_path ? `<span class="cover"><img src="${coverUrl(t)}" alt="Album cover"></span>` : discHTML(t)) : discHTML({ id: "idle" });
   $("fTitle").textContent = t ? t.title : "Nothing playing";
   $("fBy").textContent = t ? artistOf(t) : "";
+  $("fBy").classList.toggle("alinkish", !!(t && hasArtist(t)));
   $("fAdd").classList.toggle("hide", !t);
   $("fLyrics").textContent = t ? (t.lyrics && t.lyrics.trim() ? t.lyrics : "No lyrics yet.") : "Play a song to see its lyrics.";
   $("fEdit").classList.toggle("hide", !(t && t.user_id === me.id));
@@ -2527,7 +2583,8 @@ function renderLyrics() {
   $("npArtistStats").textContent = !t ? "" : t.artist
     ? `${theirs.length} song${theirs.length === 1 ? "" : "s"} in Budsbox \u00B7 ${theirs.reduce((n, x) => n + (x.plays || 0), 0)} listens`
     : "No artist set for this song yet.";
-  $("npArtistMore").classList.toggle("hide", !(t && t.artist && theirs.length > 1));
+  $("npArtistMore").classList.toggle("hide", !(t && hasArtist(t)));
+  $("npBy").classList.toggle("alinkish", !!(t && hasArtist(t)));
   // credits (the uploader only shows if you turned on "Song credits" in settings)
   $("npCredits").innerHTML = !t ? '<div class="sub">Nothing playing.</div>'
     : `<div class="credit"><b>${esc(art)}</b><span>Main artist</span></div>` +
@@ -2554,7 +2611,9 @@ $("npEdit").onclick = () => { const t = curTrack(); if (t) openEdit(t); };
 $("npAdd").onclick = () => { const t = curTrack(); if (t) openPicker(t); };
 $("npClose").onclick = () => $("lyrBtn").click();
 $("npMore").onclick = () => { const c = $("npLyrCard"); c.classList.toggle("full"); $("npMore").textContent = c.classList.contains("full") ? "Show less" : "Show all"; };
-$("npArtistMore").onclick = () => { const t = curTrack(); if (!t) return; $("q").value = artistOf(t); query = artistOf(t).toLowerCase(); drawLists(); $("main").scrollTop = 0; };
+$("npArtistMore").onclick = () => { const t = curTrack(); if (t && hasArtist(t)) goArtist(artistOf(t)); };
+$("npBy").onclick = () => { const t = curTrack(); if (t && hasArtist(t)) goArtist(artistOf(t)); };
+$("fBy").onclick = () => { const t = curTrack(); if (t && hasArtist(t)) goArtist(artistOf(t)); };
 $("npOpenQ").onclick = () => { renderQueue(); openOv("qModal"); };
 // "Next in queue": your queued songs first, then the rest of the list
 function nextUp() {
