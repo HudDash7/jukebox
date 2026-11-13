@@ -559,3 +559,12 @@ button,.btn,input[type=text],input[type=email],input[type=password],input[type=s
 body.offline #lists .trow[data-i]:not(.dl){opacity:.38}
 #storeCloud code{font-size:8px;word-break:break-all;color:#fff}
 #storeModal .row{margin-top:6px}
+
+/* shuffle + repeat in the full-screen player */
+.fctl{gap:16px}
+.fside{padding:10px;color:#dfe7da}
+.fside svg{width:22px;height:22px}
+.fside.on{color:var(--gold)}
+#fRep{position:relative}
+#fRep.one .rep1{display:block}
+body.full-open #toast{bottom:calc(env(safe-area-inset-bottom) + 24px)}

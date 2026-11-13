@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="budsbox-build" content="b10">
+<meta name="budsbox-build" content="b11">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -16,7 +16,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<link rel="stylesheet" href="css/app.css?v=b10">
+<link rel="stylesheet" href="css/app.css?v=b11">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs id="defs">
@@ -449,9 +449,11 @@
   <div id="fBar" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="fFill"></div></div>
   <div class="ftimes"><span id="fCur">0:00</span><span id="fDur">0:00</span></div>
   <div class="fctl">
+    <button class="ico pbtn fside" id="fShuf" aria-label="Shuffle" aria-pressed="false"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-shuffle"/></svg></button>
     <button class="ico fmid" id="fPrev" aria-label="Previous"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-prev"/></svg></button>
     <button class="ico go fplay" id="fPlay" aria-label="Play"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use id="fPlayIco" href="#ic-play"/></svg></button>
     <button class="ico fmid" id="fNext" aria-label="Next"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-next"/></svg></button>
+    <button class="ico pbtn fside" id="fRep" aria-label="Repeat: off"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-repeat"/></svg><span class="rep1">1</span></button>
   </div>
   <div class="fextra">
     <button class="add" id="fJam">JAM</button>
@@ -493,7 +495,7 @@
 <div id="toast" class="hide" role="status" aria-live="polite"></div>
 <audio id="audio" preload="auto" playsinline></audio>
 
-<script src="js/app.js?v=b10"></script>
-<script>/* older copies look for this line to spot updates: const APP_BUILD = "b10"; */</script>
+<script src="js/app.js?v=b11"></script>
+<script>/* older copies look for this line to spot updates: const APP_BUILD = "b11"; */</script>
 </body>
 </html>

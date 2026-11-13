@@ -979,7 +979,7 @@ function heroHTML({ kind, title, meta, art, extras, back, canPlay }) {
   </div>
   <div class="hbar">
     ${canPlay ? `<button class="go bigplay" data-playall="1" aria-label="Play">${ICON("ic-play")}</button>
-    <button class="ico pbtn${shuffleOn ? " on" : ""}" data-shufplay="1" aria-label="Shuffle play" title="Shuffle play">${ICON("ic-shuffle")}</button>` : ""}
+    <button class="ico pbtn${shuffleOn ? " on" : ""}" data-shufplay="1" aria-pressed="${shuffleOn}" aria-label="${shuffleOn ? "Turn shuffle off" : "Shuffle play"}" title="${shuffleOn ? "Shuffle is on \u2014 tap to turn off" : "Shuffle play"}">${ICON("ic-shuffle")}</button>` : ""}
     ${extras || ""}
   </div>`;
 }
@@ -1255,7 +1255,8 @@ $("lists").onclick = (e) => {
     if (b.dataset.shufplay !== undefined) {
       if (!shown.length) return;
       if (jam.role === "guest") { jamCmd({ cmd: "list", ids: shuffled(shown, null).map((x) => x.id) }); toast("Shuffling this list for the Jam"); return; }
-      if (!shuffleOn) { shuffleOn = true; try { localStorage.setItem("jukebox_shuffle", "1"); } catch (e) {} paintModes(); }
+      if (shuffleOn) { setShuffle(false); return; }
+      setShuffle(true, true); toast("Shuffle on");
       pickPlay(shown[Math.floor(Math.random() * shown.length)], shown); drawLists(); return;
     }
   }
@@ -1641,16 +1642,25 @@ function paintModes() {
   $("repBtn").classList.toggle("one", repeatMode === "one");
   const label = { off: "Repeat: off", all: "Repeat: all", one: "Repeat: one song" }[repeatMode];
   $("repBtn").setAttribute("aria-label", label); $("repBtn").title = label;
+  // full-screen player mirrors the bar
+  $("fShuf").classList.toggle("on", shuffleOn); $("fShuf").setAttribute("aria-pressed", String(shuffleOn));
+  $("fRep").classList.toggle("on", repeatMode !== "off"); $("fRep").classList.toggle("one", repeatMode === "one");
+  $("fRep").setAttribute("aria-label", label);
 }
-$("shufBtn").onclick = () => {
-  if (jam.role === "guest") { toast("The Jam host controls shuffle"); return; }
-  shuffleOn = !shuffleOn;
+function setShuffle(on, quiet) {
+  if (jam.role === "guest") { toast("The Jam host controls shuffle"); return false; }
+  if (on === shuffleOn) return true;
+  shuffleOn = on;
   if (shuffleOn) { queueOrig = queueOrig || [...queue]; queue = shuffled(queue, ctxId); }
   else if (queueOrig) queue = [...queueOrig];
   try { localStorage.setItem("jukebox_shuffle", shuffleOn ? "1" : "0"); } catch (e) {}
-  paintModes(); toast(shuffleOn ? "Shuffle on" : "Shuffle off");
-  setNow(); jamPush();
-};
+  paintModes(); if (!quiet) toast(shuffleOn ? "Shuffle on" : "Shuffle off");
+  setNow(); jamPush(); drawLists();
+  return true;
+}
+$("shufBtn").onclick = () => setShuffle(!shuffleOn);
+$("fShuf").onclick = () => setShuffle(!shuffleOn);
+$("fRep").onclick = () => $("repBtn").click();
 $("repBtn").onclick = () => {
   if (jam.role === "guest") { toast("The Jam host controls repeat"); return; }
   repeatMode = { off: "all", all: "one", one: "off" }[repeatMode];
