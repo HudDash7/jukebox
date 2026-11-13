@@ -351,6 +351,7 @@ function setUser(u) {
 }
 
 function render() {
+  if (me) loadAppearanceFromAccount();
   $("auth").classList.toggle("hide", !!me);
   $("app").classList.toggle("hide", !me);
   $("tabbar").classList.toggle("hide", !me);
@@ -775,6 +776,7 @@ async function openStorage() {
   for (const t of all) { used.add(t.path); if (t.cover_path) used.add(t.cover_path); }
   for (const p of lists) if (p.cover_path) used.add(p.cover_path);
   for (const r of artistInfo.values()) if (r.picture_path) used.add(r.picture_path);
+  if (appearance.photo) used.add(appearance.photo);
   const recent = Date.now() - 15 * 60000; // skip files from uploads that may still be finishing
   const size = (f) => +(f.metadata && f.metadata.size) || 0;
   const total = files.reduce((n, f) => n + size(f), 0);
@@ -800,6 +802,107 @@ $("storeClearDl").onclick = async () => {
   setDownloads([]); try { await caches.delete(AUDIO_CACHE); } catch (e) {}
   offlineIds = new Set(); drawLists(); openStorage(); toast("Downloads removed");
 };
+
+/* ---------- appearance: background + accent colour ----------
+   Saved on this device right away, and on your account so it follows you. */
+const APPEAR_KEY = "jukebox_appearance";
+const APPEAR_DEFAULT = { bg: "black", photo: null, dim: 55, blur: false, accent: "green" };
+const ACCENTS = {
+  green: ["#5a9e32", "#3f7522", "#9be35a"], blue: ["#2f7bd0", "#1f5a9e", "#7cc0ff"], purple: ["#8a4fd0", "#64359e", "#c9a2ff"],
+  pink: ["#d04f8f", "#9e3569", "#ffa2cf"], gold: ["#c79a1a", "#946f0c", "#fcdb5b"],
+};
+let appearance = (() => { try { return { ...APPEAR_DEFAULT, ...JSON.parse(localStorage.getItem(APPEAR_KEY) || "{}") }; } catch (e) { return { ...APPEAR_DEFAULT }; } })();
+const bgPhotoUrl = (p) => !p ? "" : p.startsWith("data:") || p.startsWith("blob:") ? p : sb ? sb.storage.from("music").getPublicUrl(p).data.publicUrl : "";
+function applyAppearance() {
+  const a = appearance, h = document.documentElement;
+  const bg = a.bg === "photo" && !a.photo ? "black" : a.bg;
+  for (const k of ["black", "classic", "forest", "photo"]) h.classList.toggle("bg-" + k, bg === k);
+  const url = bg === "photo" ? bgPhotoUrl(a.photo) : "";
+  $("bgLayer").style.backgroundImage = url ? `url("${url}")` : "";
+  $("bgLayer").classList.toggle("blur", !!a.blur);
+  h.style.setProperty("--bgdim", String((+a.dim || 0) / 100));
+  const c = ACCENTS[a.accent] || ACCENTS.green;
+  h.style.setProperty("--grass", c[0]); h.style.setProperty("--grass-d", c[1]); h.style.setProperty("--gold", c[2]);
+  const tc = document.querySelector('meta[name="theme-color"]'); if (tc) tc.setAttribute("content", c[0]);
+}
+let appearT = 0;
+function saveAppearance() {
+  try { localStorage.setItem(APPEAR_KEY, JSON.stringify(appearance)); } catch (e) {}
+  applyAppearance(); paintAppearance();
+  clearTimeout(appearT);
+  appearT = setTimeout(async () => {
+    if (!me) return;
+    const { data, error } = await sb.auth.updateUser({ data: { appearance } });
+    if (!error && data?.user) me = data.user;
+  }, 700);
+}
+// when you log in, your account's look wins over this device's
+function loadAppearanceFromAccount() {
+  const a = me?.user_metadata?.appearance;
+  if (a && typeof a === "object") { appearance = { ...APPEAR_DEFAULT, ...a }; try { localStorage.setItem(APPEAR_KEY, JSON.stringify(appearance)); } catch (e) {} }
+  applyAppearance();
+}
+function paintAppearance() {
+  const a = appearance;
+  document.querySelectorAll("#bgChoices [data-bg]").forEach((b) => { const on = b.dataset.bg === a.bg; b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on)); });
+  document.querySelectorAll("#accents [data-accent]").forEach((b) => { const on = b.dataset.accent === a.accent; b.classList.toggle("on", on); b.setAttribute("aria-checked", String(on)); });
+  $("photoOpts").classList.toggle("hide", a.bg !== "photo");
+  $("bgNoPhoto").classList.toggle("hide", !a.photo);
+  $("bgPhotoSw").style.backgroundImage = a.photo ? `url("${bgPhotoUrl(a.photo)}")` : "";
+  $("bgDim").value = a.dim; $("bgDimV").textContent = a.dim + "%";
+  $("bgBlur").checked = !!a.blur;
+}
+// keep the photo's shape (not square), long side up to 1600px
+function resizeBg(file, max = 1600) {
+  return new Promise((res, rej) => {
+    const img = new Image(), u = URL.createObjectURL(file);
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement("canvas");
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(u);
+      c.toBlob((b) => (b ? res(b) : rej(new Error("Could not read that image"))), "image/jpeg", 0.82);
+    };
+    img.onerror = () => { URL.revokeObjectURL(u); rej(new Error("That file isn't an image")); };
+    img.src = u;
+  });
+}
+$("appearOpen").onclick = () => { toggleMenu(false); $("appearMsg").textContent = ""; paintAppearance(); openOv("appearModal"); };
+$("appearClose").onclick = () => closeOv("appearModal");
+$("appearReset").onclick = () => { const old = appearance.photo; appearance = { ...APPEAR_DEFAULT }; saveAppearance(); if (old && !old.startsWith("data:")) sb.storage.from("music").remove([old]); toast("Back to the default look"); };
+$("bgChoices").onclick = (e) => {
+  const b = e.target.closest("[data-bg]"); if (!b) return;
+  appearance.bg = b.dataset.bg; saveAppearance();
+  if (b.dataset.bg === "photo" && !appearance.photo) $("bgImg").click(); // pick one straight away
+};
+$("accents").onclick = (e) => { const b = e.target.closest("[data-accent]"); if (b) { appearance.accent = b.dataset.accent; saveAppearance(); } };
+$("bgDim").oninput = () => { appearance.dim = +$("bgDim").value; $("bgDimV").textContent = appearance.dim + "%"; applyAppearance(); };
+$("bgDim").onchange = () => saveAppearance();
+$("bgBlur").onchange = () => { appearance.blur = $("bgBlur").checked; saveAppearance(); };
+$("bgImg").onchange = async (e) => {
+  const f = e.target.files[0]; e.target.value = "";
+  if (!f) return;
+  $("appearMsg").textContent = "Uploading photo...";
+  try {
+    const blob = await resizeBg(f);
+    // show it right away while it uploads
+    const preview = URL.createObjectURL(blob);
+    $("bgLayer").style.backgroundImage = `url("${preview}")`; document.documentElement.classList.add("bg-photo");
+    const path = `${me.id}/bg_${Date.now()}.jpg`;
+    const up = await sb.storage.from("music").upload(path, blob, { contentType: "image/jpeg" });
+    if (up.error) throw new Error("Upload failed: " + up.error.message);
+    const old = appearance.photo;
+    appearance.photo = path; appearance.bg = "photo"; saveAppearance();
+    if (old && old !== path && !old.startsWith("data:")) sb.storage.from("music").remove([old]);
+    $("appearMsg").textContent = "";
+    setTimeout(() => URL.revokeObjectURL(preview), 5000);
+  } catch (err) { $("appearMsg").textContent = err.message; applyAppearance(); }
+};
+$("bgNoPhoto").onclick = () => {
+  const old = appearance.photo; appearance.photo = null; appearance.bg = "black"; saveAppearance();
+  if (old && !old.startsWith("data:")) sb.storage.from("music").remove([old]);
+};
+applyAppearance();
 
 /* ---------- password: forgot + change ---------- */
 $("forgot").onclick = async () => {

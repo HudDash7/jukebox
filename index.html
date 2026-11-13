@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="budsbox-build" content="b11">
+<meta name="budsbox-build" content="b12">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -16,9 +16,10 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<link rel="stylesheet" href="css/app.css?v=b11">
+<link rel="stylesheet" href="css/app.css?v=b12">
 </head>
 <body>
+<div id="bgLayer" aria-hidden="true"></div>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs id="defs">
   <symbol id="pencil" viewBox="0 0 8 8">
     <rect x="6" y="0" width="2" height="1" fill="#ff8fa3"/><rect x="7" y="1" width="1" height="1" fill="#ff8fa3"/>
@@ -125,6 +126,8 @@
         <button id="wrapOpen" class="lbopen"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-note"/></svg>Your Wrapped</button>
         <button id="lbOpen" class="lbopen"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-trophy"/></svg>Leaderboard</button>
         <h3>Account</h3>
+        <h3>Look</h3>
+        <button id="appearOpen">Appearance</button>
         <button id="storeOpen">Storage &amp; downloads</button>
         <button id="pwChange">Change password</button>
         <button id="logout">Log out</button>
@@ -298,6 +301,39 @@
     <div class="row"><button class="hide" id="storeClearDl">Remove all downloads</button></div>
     <div class="msg" id="storeMsg"></div>
     <div class="row"><button class="go" id="storeClose">Done</button></div>
+  </div>
+</div>
+
+<!-- Appearance -->
+<div id="appearModal" class="overlay hide">
+  <div class="panel">
+    <div>Appearance</div>
+    <h3>Background</h3>
+    <div class="bgchoices" id="bgChoices" role="radiogroup" aria-label="Background">
+      <button class="bgchoice" data-bg="black" role="radio"><span class="bgsw sw-black"></span>Black</button>
+      <button class="bgchoice" data-bg="classic" role="radio"><span class="bgsw sw-classic"></span>Classic</button>
+      <button class="bgchoice" data-bg="forest" role="radio"><span class="bgsw sw-forest"></span>Forest</button>
+      <button class="bgchoice" data-bg="photo" role="radio"><span class="bgsw sw-photo" id="bgPhotoSw"></span>Your photo</button>
+    </div>
+    <div id="photoOpts" class="hide">
+      <div class="row" style="margin-top:8px">
+        <label class="btn" for="bgImg">Choose photo</label>
+        <input id="bgImg" type="file" accept="image/*">
+        <button id="bgNoPhoto" class="hide">Remove photo</button>
+      </div>
+      <label class="slidrow">Dim <input type="range" id="bgDim" min="0" max="85" step="5" aria-label="Dim the photo"><span id="bgDimV"></span></label>
+      <label class="checkrow"><input type="checkbox" id="bgBlur"> Blur the photo</label>
+    </div>
+    <h3>Accent colour</h3>
+    <div class="row accents" id="accents" role="radiogroup" aria-label="Accent colour">
+      <button class="accent" data-accent="green" style="--a:#5a9e32" role="radio" aria-label="Green"></button>
+      <button class="accent" data-accent="blue" style="--a:#2f7bd0" role="radio" aria-label="Blue"></button>
+      <button class="accent" data-accent="purple" style="--a:#8a4fd0" role="radio" aria-label="Purple"></button>
+      <button class="accent" data-accent="pink" style="--a:#d04f8f" role="radio" aria-label="Pink"></button>
+      <button class="accent" data-accent="gold" style="--a:#c79a1a" role="radio" aria-label="Gold"></button>
+    </div>
+    <div class="msg" id="appearMsg"></div>
+    <div class="row"><button class="go" id="appearClose">Done</button><button id="appearReset">Reset to default</button></div>
   </div>
 </div>
 
@@ -495,7 +531,7 @@
 <div id="toast" class="hide" role="status" aria-live="polite"></div>
 <audio id="audio" preload="auto" playsinline></audio>
 
-<script src="js/app.js?v=b11"></script>
-<script>/* older copies look for this line to spot updates: const APP_BUILD = "b11"; */</script>
+<script src="js/app.js?v=b12"></script>
+<script>/* older copies look for this line to spot updates: const APP_BUILD = "b12"; */</script>
 </body>
 </html>

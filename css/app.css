@@ -1,5 +1,5 @@
 /* green + grey theme: grass, stone and deepslate */
-:root{--grass:#5a9e32;--grass-d:#3f7522;--dirt:#4a4c4a;--dirt-d:#333533;--dark:#1d1f1d;--stone:#7d7d7d;--stone-l:#c6c6c6;--stone-d:#3b3b3b;--text:#eef3ea;--gold:#9be35a;--red:#c0392b;--lilac:#c9f0aa;--xp1:#78ff20;--xp2:#55c010;--ph:150px;--hh:80px}
+:root{--grass:#5a9e32;--grass-d:#3f7522;--dirt:#4a4c4a;--dirt-d:#333533;--dark:#000;--stone:#7d7d7d;--stone-l:#c6c6c6;--stone-d:#3b3b3b;--text:#eef3ea;--gold:#9be35a;--red:#c0392b;--lilac:#c9f0aa;--xp1:#78ff20;--xp2:#55c010;--ph:150px;--hh:80px}
 *{box-sizing:border-box;image-rendering:pixelated}
 html{height:100%;background:var(--dark)}
 body{margin:0;min-height:100%;font-family:"Press Start 2P",ui-monospace,monospace;font-size:11px;line-height:1.7;color:var(--text);background:var(--dark);
@@ -568,3 +568,52 @@ body.offline #lists .trow[data-i]:not(.dl){opacity:.38}
 #fRep{position:relative}
 #fRep.one .rep1{display:block}
 body.full-open #toast{bottom:calc(env(safe-area-inset-bottom) + 24px)}
+
+/* ---------- backgrounds (Settings > Appearance) ---------- */
+html.bg-black,html.bg-black body{background:#000}
+html.bg-classic{--dark:#1d1f1d;background:#1d1f1d}
+html.bg-classic body{background-color:#1d1f1d}
+html.bg-forest{--dark:#0e160b;background:#0b0f0a}
+html.bg-forest body{background:linear-gradient(180deg,#22401a 0,#0e160b 45%,#0b0f0a 100%) fixed}
+html.bg-photo{background:#000}
+html.bg-photo body{background:transparent}
+html:not(.bg-classic) body{background-image:none}
+html.bg-forest body{background-image:linear-gradient(180deg,#22401a 0,#0e160b 45%,#0b0f0a 100%)}
+#bgLayer{position:fixed;inset:0;z-index:-1;display:none;background:#000 center/cover no-repeat;pointer-events:none}
+html.bg-photo #bgLayer{display:block}
+#bgLayer::after{content:"";position:absolute;inset:0;background:#000;opacity:var(--bgdim,.55)}
+#bgLayer.blur{filter:blur(10px);transform:scale(1.06)}
+html.bg-photo .lhead{background:#000c;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+@media (max-width:1023px){
+  html.bg-photo header{background:linear-gradient(180deg,#000d,#0006)}
+  html.bg-black header,html.bg-black{background:#000}
+}
+.bgchoices{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.bgchoice{display:flex;flex-direction:column;align-items:center;gap:8px;padding:8px 4px;margin:0;font-size:8px}
+.bgchoice.on{outline:3px solid var(--gold)}
+.bgsw{display:block;width:100%;aspect-ratio:1;border:3px solid #000;border-radius:8px;background:#000 center/cover}
+.sw-classic{background:#1d1f1d linear-gradient(45deg,#0000 25%,#00000044 25% 50%,#0000 50% 75%,#00000044 75%);background-size:12px 12px}
+.sw-forest{background:linear-gradient(180deg,#22401a,#0b0f0a)}
+.sw-photo{background:linear-gradient(135deg,#444,#111)}
+.slidrow,.checkrow{display:flex;align-items:center;gap:10px;font-size:9px;margin:10px 0 2px}
+.slidrow input{flex:1;accent-color:var(--grass)}
+.checkrow input{width:18px;height:18px;accent-color:var(--grass)}
+.accents{gap:10px}
+.accent{width:40px;height:40px;padding:0;border-radius:50%!important;background:var(--a);border:3px solid #000}
+.accent:hover{background:var(--a);filter:brightness(1.15)}
+.accent.on{outline:3px solid #fff;outline-offset:2px}
+#appearOpen{margin-bottom:6px}
+/* follow the accent colour (Settings > Appearance) */
+@supports (background: color-mix(in srgb, red 50%, black)) {
+  .hero{background:linear-gradient(180deg,color-mix(in srgb,var(--grass) 88%,#000) 0%,color-mix(in srgb,var(--grass) 55%,#000) 60%,color-mix(in srgb,var(--grass) 25%,#111) 100%)}
+  #full{background:linear-gradient(180deg,color-mix(in srgb,var(--grass) 70%,#000) 0,color-mix(in srgb,var(--grass) 40%,#000) 32%,#111 64%)}
+  .likedtile{background:linear-gradient(135deg,var(--gold),var(--grass-d) 60%,color-mix(in srgb,var(--grass) 30%,#000))}
+  .nplyr{background:linear-gradient(180deg,var(--grass-d),color-mix(in srgb,var(--grass) 45%,#000))}
+  .w1,.w5{background:linear-gradient(135deg,var(--grass),color-mix(in srgb,var(--grass) 45%,#000))}
+  .w3{background:linear-gradient(135deg,var(--grass-d),var(--gold))}
+}
+@media (max-width:1023px){
+  @supports (background: color-mix(in srgb, red 50%, black)) {
+    #player{background:color-mix(in srgb,var(--grass) 45%,#0c0c0c)}
+  }
+}
