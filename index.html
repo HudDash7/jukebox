@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="budsbox-build" content="b6">
+<meta name="budsbox-build" content="b7">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -16,7 +16,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<link rel="stylesheet" href="css/app.css?v=b6">
+<link rel="stylesheet" href="css/app.css?v=b7">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs id="defs">
@@ -79,6 +79,10 @@
   <symbol id="tb-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m20.5 20.5-4.9-4.9"/></symbol>
   <symbol id="tb-lib" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 3.5v17M9.5 3.5v17"/><path d="m14 4.2 5.5 1.6v14.7H14z"/></symbol>
   <symbol id="tb-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 4.5v15M4.5 12h15"/></symbol>
+  <symbol id="ic-heart" viewBox="0 0 9 9" fill="currentColor"><rect x="1" y="1" width="3" height="1"/><rect x="5" y="1" width="3" height="1"/><rect x="0" y="2" width="1" height="2"/><rect x="4" y="2" width="1" height="1"/><rect x="8" y="2" width="1" height="2"/><rect x="1" y="4" width="1" height="1"/><rect x="7" y="4" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="6" y="5" width="1" height="1"/><rect x="3" y="6" width="1" height="1"/><rect x="5" y="6" width="1" height="1"/><rect x="4" y="7" width="1" height="1"/></symbol>
+  <symbol id="ic-heart-f" viewBox="0 0 9 9" fill="currentColor"><rect x="1" y="1" width="3" height="1"/><rect x="5" y="1" width="3" height="1"/><rect x="0" y="2" width="9" height="2"/><rect x="1" y="4" width="7" height="1"/><rect x="2" y="5" width="5" height="1"/><rect x="3" y="6" width="3" height="1"/><rect x="4" y="7" width="1" height="1"/></symbol>
+  <symbol id="ic-moon" viewBox="0 0 8 8" fill="currentColor"><rect x="2" y="0" width="4" height="1"/><rect x="1" y="1" width="2" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="0" y="2" width="2" height="3"/><rect x="1" y="5" width="2" height="1"/><rect x="6" y="5" width="1" height="1"/><rect x="2" y="6" width="4" height="1"/></symbol>
+  <symbol id="ic-grip" viewBox="0 0 8 8" fill="currentColor"><rect x="1" y="1" width="6" height="1"/><rect x="1" y="3" width="6" height="1"/><rect x="1" y="5" width="6" height="1"/></symbol>
   <symbol id="ic-gear" viewBox="0 0 8 8" fill="#fff">
     <rect x="3" y="0" width="2" height="1"/><rect x="1" y="1" width="6" height="1"/>
     <rect x="1" y="2" width="2" height="1"/><rect x="5" y="2" width="2" height="1"/>
@@ -151,6 +155,7 @@
   <!-- desktop: playlist sidebar -->
   <aside id="side" class="panel" aria-label="Playlists">
     <button class="sitem" id="navLib"><span class="t">Library</span></button>
+    <button class="sitem" id="navLiked"><span class="sthumb"><span class="likedtile sm"><svg viewBox="0 0 9 9" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-heart-f"/></svg></span></span><span class="t">Liked Songs</span><span class="sub" id="navLikedN"></span></button>
     <h3>Your playlists</h3>
     <div id="sideMine"></div>
     <input id="sideNew" type="text" placeholder="new playlist" maxlength="60" aria-label="New playlist name">
@@ -165,6 +170,7 @@
     <div id="npArt"></div>
     <div class="npcap">
       <div class="grow" style="min-width:0"><div id="npTitle">Nothing playing</div><div id="npBy"></div></div>
+      <button class="ico pbtn likebtn" id="npLike" aria-label="Like" title="Add to Liked Songs" aria-pressed="false"><svg viewBox="0 0 9 9" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-heart"/></svg></button>
       <button class="ico pbtn" id="npAdd" aria-label="Add to playlist" title="Add to playlist"><svg viewBox="0 0 9 9" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-cplus"/></svg></button>
     </div>
     <div class="npcard nplyr" id="npLyrCard">
@@ -267,6 +273,15 @@
   </div>
 </div>
 
+<!-- Sleep timer -->
+<div id="sleepSheet" class="overlay hide">
+  <div class="sheet" role="dialog" aria-label="Sleep timer">
+    <div class="sheetgrab"></div>
+    <div class="sheettitle">Sleep timer <span class="sub" id="sleepNow"></span></div>
+    <div id="sleepOpts"></div>
+  </div>
+</div>
+
 <!-- New password (after a reset email, or from Settings) -->
 <div id="pwModal" class="overlay hide">
   <div class="panel">
@@ -356,6 +371,7 @@
         <span id="art" class="hide"></span>
         <div class="nowcol"><div id="jamTag" class="hide"></div><div id="now" class="idle">Nothing playing</div><div id="nowBy" class="sub"></div></div>
       </div>
+      <button class="ico pbtn likebtn" id="pLike" aria-label="Like" title="Add to Liked Songs" aria-pressed="false"><svg viewBox="0 0 9 9" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-heart"/></svg></button>
       <button class="ico pbtn" id="pAdd" aria-label="Add to playlist" title="Add to playlist"><svg viewBox="0 0 9 9" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-cplus"/></svg></button>
     </div>
     <div class="pcenter">
@@ -375,6 +391,7 @@
       </div>
     </div>
     <div class="pright">
+      <button class="ico pbtn" id="sleepBtn" aria-label="Sleep timer" title="Sleep timer"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-moon"/></svg></button>
       <button class="ico pbtn" id="lyrBtn" aria-label="Lyrics" title="Lyrics"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-lyrics"/></svg></button>
       <button class="ico pbtn" id="qBtn" aria-label="Queue" title="Queue"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-queue"/></svg></button>
       <button class="ico pbtn" id="jamBtn" aria-label="Jam: listen together" title="Jam: listen together"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-jam"/></svg><span id="jamN"></span></button>
@@ -398,6 +415,7 @@
       <div id="fTitle">Nothing playing</div>
       <div id="fBy" class="sub"></div>
     </div>
+    <button class="ico pbtn fbig likebtn" id="fLike" aria-label="Like" title="Add to Liked Songs" aria-pressed="false"><svg viewBox="0 0 9 9" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-heart"/></svg></button>
     <button class="ico pbtn fbig" id="fAdd" aria-label="Add to playlist or queue"><svg viewBox="0 0 9 9" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-cplus"/></svg></button>
   </div>
   <div id="fBar" role="slider" tabindex="0" aria-label="Seek" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="fFill"></div></div>
@@ -409,6 +427,7 @@
   </div>
   <div class="fextra">
     <button class="add" id="fJam">JAM</button>
+    <button class="add" id="fSleep"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-moon"/></svg><span id="fSleepTxt">Sleep</span></button>
     <span class="sub" id="fJamTag"></span>
   </div>
   <div class="fcard">
@@ -446,7 +465,7 @@
 <div id="toast" class="hide" role="status" aria-live="polite"></div>
 <audio id="audio" preload="auto" playsinline></audio>
 
-<script src="js/app.js?v=b6"></script>
-<script>/* older copies look for this line to spot updates: const APP_BUILD = "b6"; */</script>
+<script src="js/app.js?v=b7"></script>
+<script>/* older copies look for this line to spot updates: const APP_BUILD = "b7"; */</script>
 </body>
 </html>

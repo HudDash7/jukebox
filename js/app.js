@@ -41,6 +41,19 @@ ARTIST NAMES NEED THIS. Run once:
 
 alter table public.tracks add column if not exists artist text;
 
+LIKED SONGS NEED THIS. Run once:
+
+create table if not exists public.likes (
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  track_id text not null,
+  created_at timestamptz not null default now(),
+  primary key (user_id, track_id)
+);
+alter table public.likes enable row level security;
+create policy "likes own read" on public.likes for select to authenticated using (auth.uid() = user_id);
+create policy "likes own add" on public.likes for insert to authenticated with check (auth.uid() = user_id);
+create policy "likes own remove" on public.likes for delete to authenticated using (auth.uid() = user_id);
+
 SONG LENGTHS NEED THIS. Run once:
 
 alter table public.tracks add column if not exists duration integer;
@@ -376,6 +389,88 @@ async function backfillDurations() {
   if (todo.length) drawLists();
 }
 
+/* ---------- Liked Songs ----------
+   Saved to your account (likes table). Until that table exists, likes are kept on this device. */
+let liked = new Map(), likesLocal = false;
+const isLiked = (t) => !!t && liked.has(String(t.id));
+const LIKE_KEY = () => "jukebox_likes_" + (me?.id || "");
+async function loadLikes() {
+  const { data, error } = await sb.from("likes").select("track_id,created_at").eq("user_id", me.id);
+  if (error) {
+    likesLocal = /likes|schema cache|does not exist/i.test(error.message || "");
+    try { liked = new Map(JSON.parse(localStorage.getItem(LIKE_KEY()) || "[]")); } catch (e) { liked = new Map(); }
+  } else { likesLocal = false; liked = new Map((data || []).map((r) => [String(r.track_id), r.created_at])); }
+}
+const saveLocalLikes = () => { try { localStorage.setItem(LIKE_KEY(), JSON.stringify([...liked])); } catch (e) {} };
+async function toggleLike(t) {
+  if (!t) return;
+  const id = String(t.id), was = liked.has(id);
+  if (was) liked.delete(id); else liked.set(id, new Date().toISOString());
+  paintLikes(); sfxClick();
+  toast(was ? "Removed from Liked Songs" : "Added to Liked Songs");
+  if (likesLocal) { saveLocalLikes(); return; }
+  const r = was ? await sb.from("likes").delete().eq("user_id", me.id).eq("track_id", id)
+                : await sb.from("likes").insert({ user_id: me.id, track_id: id });
+  if (r.error) {
+    if (/likes|schema cache|does not exist/i.test(r.error.message || "")) { likesLocal = true; saveLocalLikes(); return; }
+    if (was) liked.set(id, new Date().toISOString()); else liked.delete(id); // undo
+    paintLikes(); say(r.error.message);
+  }
+}
+const likedTracks = () => [...liked.entries()].sort((a, b) => String(b[1]).localeCompare(String(a[1]))).map(([id]) => all.find((t) => String(t.id) === id)).filter(Boolean);
+function paintLikes() {
+  const t = curTrack();
+  for (const id of ["pLike", "fLike", "npLike"]) {
+    const b = $(id), on = isLiked(t);
+    b.classList.toggle("on", on); b.classList.toggle("invis", !t);
+    b.setAttribute("aria-pressed", String(on)); b.title = on ? "Remove from Liked Songs" : "Add to Liked Songs";
+    b.querySelector("use").setAttribute("href", on ? "#ic-heart-f" : "#ic-heart");
+  }
+  document.querySelectorAll("#lists [data-like]").forEach((b) => {
+    const on = isLiked(shown[+b.dataset.like]);
+    b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on));
+    b.querySelector("use").setAttribute("href", on ? "#ic-heart-f" : "#ic-heart");
+  });
+  $("navLikedN").textContent = liked.size || "";
+  if (view === "liked") drawLists();
+}
+for (const id of ["pLike", "fLike", "npLike"]) $(id).onclick = () => toggleLike(curTrack());
+$("navLiked").onclick = () => go("liked");
+
+/* ---------- sleep timer ---------- */
+const sleep = { at: 0, endOfSong: false };
+function setSleep(opt) {
+  sleep.at = 0; sleep.endOfSong = false;
+  if (opt === "end") sleep.endOfSong = true;
+  else if (opt) sleep.at = Date.now() + opt * 60000;
+  paintSleep();
+}
+function sleepLeft() { return sleep.at ? Math.max(0, Math.ceil((sleep.at - Date.now()) / 60000)) : 0; }
+function paintSleep() {
+  const on = !!(sleep.at || sleep.endOfSong);
+  const label = sleep.endOfSong ? "End of song" : sleep.at ? sleepLeft() + " min" : "";
+  $("sleepBtn").classList.toggle("on", on); $("sleepBtn").title = on ? "Sleep timer: " + label : "Sleep timer";
+  $("fSleep").classList.toggle("go", on); $("fSleepTxt").textContent = on ? label : "Sleep";
+  $("sleepNow").textContent = on ? "· " + (sleep.endOfSong ? "stops at the end of this song" : "stops in " + label) : "";
+  const opts = [[5, "5 minutes"], [15, "15 minutes"], [30, "30 minutes"], [45, "45 minutes"], [60, "1 hour"], ["end", "End of song"]];
+  $("sleepOpts").innerHTML = opts.map(([v, l]) => `<button class="sheetopt sleepopt" data-sleep="${v}">${l}</button>`).join("") +
+    (on ? '<button class="sheetopt sleepopt" data-sleep="off"><b>Turn off timer</b></button>' : "");
+}
+$("sleepOpts").onclick = (e) => {
+  const b = e.target.closest("[data-sleep]"); if (!b) return;
+  const v = b.dataset.sleep;
+  setSleep(v === "off" ? null : v === "end" ? "end" : +v);
+  closeOv("sleepSheet");
+  toast(v === "off" ? "Sleep timer off" : v === "end" ? "Music will stop after this song" : `Music will stop in ${b.textContent}`);
+};
+const openSleep = () => { paintSleep(); openOv("sleepSheet"); };
+$("sleepBtn").onclick = openSleep; $("fSleep").onclick = openSleep;
+setInterval(() => {
+  if (sleep.at && Date.now() >= sleep.at) { setSleep(null); if (!audio.paused) { pauseByUser(); toast("Sleep timer: music paused"); } }
+  else if (sleep.at) paintSleep();
+}, 1000);
+paintSleep();
+
 /* ---------- password: forgot + change ---------- */
 $("forgot").onclick = async () => {
   const email = $("email").value.trim();
@@ -436,6 +531,7 @@ async function loadAll() {
     sb.from("playlists").select("*").order("created_at", { ascending: true }),
     sb.from("artists").select("*"),
   ]);
+  await loadLikes();
   if (ar.error) { artistInfo = new Map(); artistsNoTable = /artists|schema cache|does not exist/i.test(ar.error.message || ""); }
   else { artistInfo = new Map((ar.data || []).map((r) => [r.name, r])); artistsNoTable = false; }
   if (t.error) { say(t.error.message); return; }
@@ -517,7 +613,7 @@ function trackRow(t, i, extra, canEdit) {
     `<span class="tdate">${esc(ago(t.created_at))}</span>` +
     `<span class="tdur">${durOf(t) ? fmt(durOf(t)) : ""}</span>` +
     `<span class="plays" data-plays="${esc(t.id)}">▶ ${t.plays || 0}</span>` +
-    `<span class="tact"><button class="rbtn" data-add="${i}" aria-label="Add to playlist or queue" title="Add to playlist or queue">${PLUS}</button>${edit}${extra}</span></div>`;
+    `<span class="tact"><button class="rbtn lk${isLiked(t) ? " on" : ""}" data-like="${i}" aria-pressed="${isLiked(t)}" aria-label="Like" title="${isLiked(t) ? "Remove from" : "Add to"} Liked Songs"><svg viewBox="0 0 9 9" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-heart${isLiked(t) ? "-f" : ""}"/></svg></button><button class="rbtn" data-add="${i}" aria-label="Add to playlist or queue" title="Add to playlist or queue">${PLUS}</button>${edit}${extra}</span></div>`;
 }
 const listHead = () => '<div class="lhead" aria-hidden="true"><span class="tn">#</span><span></span><span>Title</span><span class="tdate">Date added</span><span class="plays">Plays</span><span class="tdur">Time</span><span></span></div>';
 
@@ -621,6 +717,8 @@ function drawLists() {
       if (libSort === "alpha") names = [...names].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
       html += names.length ? names.map(artistRow).join("") : '<div class="empty">No artists yet. Add an artist to a song with the pencil (Edit song).</div>';
     } else {
+    if (libFilter === "all") html += `<div class="track trow prow" tabindex="0" data-goliked="1"><span class="lcov"><span class="likedtile"><svg viewBox="0 0 9 9" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-heart-f"/></svg></span></span>
+      <span class="meta"><span class="t">Liked Songs</span><span class="by">Playlist \u00B7 ${liked.size} song${liked.size === 1 ? "" : "s"}</span></span><span class="tact"></span></div>`;
     if (libFilter === "all") html += `<div class="track trow prow" tabindex="0" data-golib="1"><span class="lcov"><span class="libtile">${ICON("ic-note")}</span></span>
       <span class="meta"><span class="t">All songs</span><span class="by">Collection · ${all.length} song${all.length === 1 ? "" : "s"}</span></span><span class="tact"></span></div>`;
     html += pls.map(plRow).join("");
@@ -628,6 +726,17 @@ function drawLists() {
     html += `<div class="track trow prow" tabindex="0" data-newpl="1"><span class="lcov"><span class="newtile">${ICON("ic-plus")}</span></span>
       <span class="meta"><span class="t">New playlist</span><span class="by">Create one and add songs with \u2295</span></span><span class="tact"></span></div>`;
     }
+  } else if (view === "liked") {
+    shown = likedTracks();
+    html = heroHTML({
+      kind: "Playlist", title: "Liked Songs", back: true, canPlay: shown.length > 0,
+      art: '<span class="likedtile"><svg viewBox="0 0 9 9" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-heart-f"/></svg></span>',
+      meta: `<b>${esc(myName())}</b> \u00B7 ${shown.length} song${shown.length === 1 ? "" : "s"}${len(shown)}` + (likesLocal ? " \u00B7 saved on this device" : ""),
+      extras: "",
+    });
+    if (!shown.length) html += '<div class="empty">Songs you like will show up here. Tap the \u2661 on any song.</div>';
+    else html += swipeHint + listHead();
+    shown.forEach((t, i) => { html += trackRow(t, i, "", true); });
   } else if (view.startsWith("ar:")) {
     const name = view.slice(3), songs = songsBy(name);
     if (!songs.length) { view = "pls"; return drawLists(); }
@@ -652,12 +761,17 @@ function drawLists() {
       kind: mine ? "Playlist" : "Shared playlist", title: p.name, back: true, canPlay: shown.length > 0,
       art: plArtHTML(p) + (mine ? `<button class="hedit" data-pledit="${esc(p.id)}" aria-label="Change playlist cover" title="Change cover">${ICON("ic-pen")}<span>Choose photo</span></button>` : ""),
       meta: `<b>${esc(p.owner)}</b> · ${shown.length} song${shown.length === 1 ? "" : "s"} · ${plays(shown)} listens${len(shown)}`,
-      extras: mine ? `<button class="rbtn hbtn" data-pledit="${esc(p.id)}" aria-label="Edit playlist" title="Edit playlist (cover, name)">${ICON("ic-pen")}</button><span class="grow"></span><button class="rbtn rdel hbtn" data-dpl="${esc(p.id)}" aria-label="Delete playlist" title="Delete playlist">${ICON("ic-x")}</button>` : "",
+      extras: mine ? `<button class="rbtn hbtn" data-pledit="${esc(p.id)}" aria-label="Edit playlist" title="Edit playlist (cover, name)">${ICON("ic-pen")}</button>` +
+        (shown.length > 1 ? `<button class="btn reorderbtn${reorderId === p.id ? " go" : ""}" data-reorder="1">${reorderId === p.id ? "Done" : "Reorder"}</button>` : "") + `<span class="grow"></span><button class="rbtn rdel hbtn" data-dpl="${esc(p.id)}" aria-label="Delete playlist" title="Delete playlist">${ICON("ic-x")}</button>` : "",
     });
     if (!shown.length) html += `<div class="empty">${mine ? "Empty. Use + on any song in the Library to add it here." : "Nothing in here yet."}</div>`;
     else html += swipeHint + listHead();
-    shown.forEach((t, i) => { html += trackRow(t, i, mine ? `<button class="rbtn rdel" data-rm="${i}" aria-label="Remove from playlist" title="Remove from playlist">${ICON("ic-x")}</button>` : "", false); });
+    const ro = mine && reorderId === p.id;
+    if (ro) html += '<div class="sub hint">Drag \u2261 to move songs (or focus it and use the arrow keys). Tap Done when finished.</div>';
+    shown.forEach((t, i) => { html += trackRow(t, i, ro ? `<button class="rbtn dragh" data-drag="${i}" aria-label="Move ${esc(t.title)}" title="Drag to move">${ICON("ic-grip")}</button>`
+      : mine ? `<button class="rbtn rdel" data-rm="${i}" aria-label="Remove from playlist" title="Remove from playlist">${ICON("ic-x")}</button>` : "", false); });
   }
+  $("lists").classList.toggle("reordering", view.startsWith("pl:") && reorderId === view.slice(3));
   box.innerHTML = html;
   const ss = $("sortSel");
   if (ss) ss.onchange = () => { sortBy = ss.value; try { localStorage.setItem("jukebox_sort", sortBy); } catch (e) {} drawLists(); };
@@ -670,6 +784,8 @@ function drawSide() {
   const item = (p) => `<button class="sitem${active(p.id) ? " go" : ""}" data-spl="${esc(p.id)}" title="${esc(p.name)}"><span class="sthumb">${plArtHTML(p)}</span><span class="t">${esc(p.name)}</span><span class="sub">${p.track_ids.length}</span></button>`;
   const mine = myLists(), others = lists.filter((p) => p.user_id !== me.id);
   $("navLib").classList.toggle("go", !query && view === "lib");
+  $("navLiked").classList.toggle("go", !query && view === "liked");
+  $("navLikedN").textContent = liked.size || "";
   $("sideMine").innerHTML = mine.length ? mine.map(item).join("") : '<div class="empty sub">None yet.</div>';
   $("sideOthers").innerHTML = others.length ? others.map(item).join("") : '<div class="empty sub">Nothing shared yet.</div>';
 }
@@ -688,8 +804,50 @@ function markNow() {
 }
 
 let prevView = "pls";
+// drag a song by its grip to a new spot, then save the new order
+(() => {
+  const L2 = $("lists");
+  let d = null;
+  const rows = () => [...L2.querySelectorAll(".track[data-i]")];
+  L2.addEventListener("pointerdown", (e) => {
+    const h = e.target.closest(".dragh"); if (!h) return;
+    e.preventDefault();
+    const row = h.closest(".track[data-i]");
+    d = { row, pid: e.pointerId, y0: e.clientY, moved: false };
+    h.setPointerCapture(e.pointerId); row.classList.add("dragging");
+  });
+  L2.addEventListener("pointermove", (e) => {
+    if (!d || e.pointerId !== d.pid) return;
+    d.moved = true;
+    const others = rows().filter((r) => r !== d.row);
+    const after = others.find((r) => { const b = r.getBoundingClientRect(); return e.clientY < b.top + b.height / 2; });
+    if (after) L2.insertBefore(d.row, after); else others.length && others[others.length - 1].after(d.row);
+  });
+  const end = (e) => { if (!d || e.pointerId !== d.pid) return; d.row.classList.remove("dragging"); const m = d.moved; d = null; if (m) saveOrder(); };
+  L2.addEventListener("pointerup", end); L2.addEventListener("pointercancel", end);
+  L2.addEventListener("keydown", (e) => {
+    const h = e.target.closest && e.target.closest(".dragh"); if (!h || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+    e.preventDefault(); e.stopPropagation();
+    const row = h.closest(".track[data-i]"), sib = e.key === "ArrowUp" ? row.previousElementSibling : row.nextElementSibling;
+    if (!sib || !sib.matches(".track[data-i]")) return;
+    if (e.key === "ArrowUp") sib.before(row); else sib.after(row);
+    h.focus(); saveOrder(true);
+  });
+  async function saveOrder(keepFocus) {
+    const p = lists.find((x) => x.id === view.slice(3)); if (!p) return;
+    const order = rows().map((r) => shown[+r.dataset.i]).filter(Boolean).map((t) => t.id);
+    const missing = p.track_ids.filter((id) => !order.includes(id)); // songs no longer in the library stay at the end
+    const focused = keepFocus && document.activeElement && shown[+document.activeElement.closest(".track[data-i]")?.dataset.i]?.id;
+    if (await saveIds(p, [...order, ...missing])) {
+      drawLists();
+      if (focused) { const i = shown.findIndex((t) => t.id === focused); const h = L2.querySelector(`.dragh[data-drag="${i}"]`); if (h) h.focus(); }
+    }
+  }
+})();
+
 function go(v) {
-  if ((v.startsWith("ar:") || v.startsWith("pl:")) && v !== view) prevView = (query || mSearch) ? "pls" : view;
+  if (!(v.startsWith("pl:") && v === view)) reorderId = null;
+  if ((v.startsWith("ar:") || v.startsWith("pl:") || v === "liked") && v !== view) prevView = (query || mSearch) ? "pls" : view;
   clearSearch(); view = v; mSearch = false;
   mtab = v === "lib" ? "home" : "library";
   paintTabs(); drawLists(); $("main").scrollTop = 0; scrollTo(0, 0);
@@ -733,9 +891,14 @@ $("side").addEventListener("click", (e) => { const b = e.target.closest("[data-s
 $("sideMk").onclick = async () => { await createFromInput($("sideNew")); };
 $("sideNew").onkeydown = (e) => { if (e.key === "Enter") $("sideMk").click(); };
 
+let reorderId = null;
 $("lists").onclick = (e) => {
   const b = e.target.closest("button");
+  if (b && b.dataset.reorder) { reorderId = reorderId ? null : view.slice(3); return drawLists(); }
+  if (b && b.dataset.drag !== undefined) return;
+  if ($("lists").classList.contains("reordering") && e.target.closest(".track[data-i]")) return; // no playing while reordering
   if (b) {
+    if (b.dataset.like !== undefined) return toggleLike(shown[+b.dataset.like]);
     if (b.dataset.add !== undefined) return openPicker(shown[+b.dataset.add]);
     if (b.dataset.edit !== undefined) return openEdit(shown[+b.dataset.edit]);
     if (b.dataset.rm !== undefined) return removeFromPlaylist(+b.dataset.rm);
@@ -756,6 +919,7 @@ $("lists").onclick = (e) => {
   if (b && b.dataset.chip) { libFilter = b.dataset.chip; return drawLists(); }
   if (b && b.dataset.lsort) { libSort = libSort === "alpha" ? "recent" : "alpha"; try { localStorage.setItem("jukebox_libsort", libSort); } catch (e2) {} return drawLists(); }
   if (e.target.closest("[data-golib]")) return go("lib");
+  if (e.target.closest("[data-goliked]")) return go("liked");
   if (e.target.closest("[data-newpl]")) return openCreate(true);
   const ar = e.target.closest("[data-ar]");
   if (ar) return goArtist(ar.dataset.ar);
@@ -785,7 +949,7 @@ function pickPlay(t, list, wholeList) {
   }
   // "Playing from" label for the full-screen player
   const pl = view.startsWith("pl:") && lists.find((x) => x.id === view.slice(3));
-  ctxName = query ? 'Search "' + $("q").value.trim() + '"' : pl ? pl.name : view.startsWith("ar:") ? view.slice(3) : "Library";
+  ctxName = query ? 'Search "' + $("q").value.trim() + '"' : pl ? pl.name : view.startsWith("ar:") ? view.slice(3) : view === "liked" ? "Liked Songs" : "Library";
   playTrack(t, list);
 }
 
@@ -793,6 +957,7 @@ function pickPlay(t, list, wholeList) {
 let sw = null, swallowClick = false;
 const L = $("lists");
 L.addEventListener("pointerdown", (e) => {
+  if (L.classList.contains("reordering")) return;
   if (e.pointerType !== "touch") return;
   const row = e.target.closest(".track[data-i]");
   if (!row || e.target.closest("button")) return;
@@ -1065,6 +1230,7 @@ function setNow() {
   const t = curTrack();
   $("now").textContent = t ? t.title : "Nothing playing";
   $("now").classList.toggle("idle", !t);
+  paintLikes();
   $("player").classList.toggle("idle", !t); syncSizes();
   $("nowBy").textContent = t ? artistOf(t) : "";
   $("pAdd").classList.toggle("invis", !t);
@@ -1376,6 +1542,7 @@ audio.onpause = () => {
 };
 audio.onended = () => {
   if (jam.role === "guest") return; // the host decides what's next
+  if (sleep.endOfSong) { setSleep(null); toast("Sleep timer: stopped after this song"); paintPlayBtn(); return; }
   if (repeatMode === "one" && nowId != null) { // play the same song again (counts as another listen)
     newSession();
     audio.currentTime = 0; audio.play().catch(() => {}); return;
