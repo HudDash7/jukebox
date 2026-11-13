@@ -41,6 +41,10 @@ ARTIST NAMES NEED THIS. Run once:
 
 alter table public.tracks add column if not exists artist text;
 
+SONG LENGTHS NEED THIS. Run once:
+
+alter table public.tracks add column if not exists duration integer;
+
 LEADERBOARD (who listened to what, and when) NEEDS THIS. Run once:
 
 create table if not exists public.listens (
@@ -291,7 +295,10 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   $("setup").classList.remove("hide");
 } else {
   sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  sb.auth.onAuthStateChange((_e, session) => setUser(session?.user || null));
+  sb.auth.onAuthStateChange((event, session) => {
+    setUser(session?.user || null);
+    if (event === "PASSWORD_RECOVERY") openPw(true); // came back from a reset email
+  });
   sb.auth.getSession().then(({ data }) => setUser(data.session?.user || null));
 }
 
@@ -330,6 +337,69 @@ $("signup").onclick = async () => {
   authMsg("Loading...");
   const { error } = await sb.auth.signUp({ email: $("email").value.trim(), password: $("pass").value });
   authMsg(error ? error.message : "Account created. Log in now.");
+};
+/* ---------- song lengths ----------
+   Saved on the song when it's uploaded. Older songs: whoever uploaded them fills theirs in
+   automatically in the background, and any song you play is remembered on this device. */
+let durCache = (() => { try { return JSON.parse(localStorage.getItem("jukebox_dur") || "{}"); } catch (e) { return {}; } })();
+const durOf = (t) => (t && (t.duration || durCache[t.id])) || 0;
+function rememberDur(t, sec) {
+  if (!t || !sec || !isFinite(sec) || t.duration) return;
+  sec = Math.round(sec);
+  if (durCache[t.id] !== sec) {
+    durCache[t.id] = sec; try { localStorage.setItem("jukebox_dur", JSON.stringify(durCache)); } catch (e) {}
+    document.querySelectorAll("#lists .trow[data-i]").forEach((el) => { if (shown[+el.dataset.i]?.id === t.id) { const c = el.querySelector(".tdur"); if (c) c.textContent = fmt(sec); } });
+  }
+  if (t.user_id === me?.id && !durNoCol) sb.from("tracks").update({ duration: sec }).eq("id", t.id).then((r) => {
+    if (r.error) { if (/duration/i.test(r.error.message || "")) durNoCol = true; } else t.duration = sec;
+  });
+}
+let durNoCol = false, durBusy = false;
+async function backfillDurations() {
+  if (durBusy || !me || durNoCol) return;
+  durBusy = true;
+  const todo = all.filter((t) => t.user_id === me.id && !t.duration).slice(0, 40);
+  for (const t of todo) {
+    if (durNoCol || !me) break;
+    if (durCache[t.id]) { rememberDur(t, durCache[t.id]); continue; }
+    const sec = await new Promise((res) => {
+      const a = new Audio(); a.preload = "metadata";
+      const done = (v) => { a.removeAttribute("src"); a.load(); res(v); };
+      a.onloadedmetadata = () => done(isFinite(a.duration) ? a.duration : 0);
+      a.onerror = () => done(0);
+      setTimeout(() => done(0), 15000);
+      a.src = urlFor(t);
+    });
+    if (sec) rememberDur(t, sec);
+  }
+  durBusy = false;
+  if (todo.length) drawLists();
+}
+
+/* ---------- password: forgot + change ---------- */
+$("forgot").onclick = async () => {
+  const email = $("email").value.trim();
+  if (!email) { authMsg("Type your email above first, then tap Forgot password."); $("email").focus(); return; }
+  authMsg("Sending...");
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+  authMsg(error ? error.message : "Check your email for a link to reset your password.");
+};
+function openPw(fromEmail) {
+  $("pw1").value = ""; $("pw2").value = "";
+  $("pwMsg").textContent = fromEmail ? "Welcome back! Choose a new password." : "";
+  toggleMenu(false); openOv("pwModal"); setTimeout(() => $("pw1").focus(), 60);
+}
+$("pwChange").onclick = () => openPw(false);
+$("pwCancel").onclick = () => closeOv("pwModal");
+$("pw2").onkeydown = (e) => { if (e.key === "Enter") $("pwSave").click(); };
+$("pwSave").onclick = async () => {
+  const a = $("pw1").value, b = $("pw2").value;
+  if (a.length < 6) { $("pwMsg").textContent = "Use at least 6 characters."; return; }
+  if (a !== b) { $("pwMsg").textContent = "The two passwords don't match."; return; }
+  $("pwMsg").textContent = "Saving...";
+  const { error } = await sb.auth.updateUser({ password: a });
+  if (error) { $("pwMsg").textContent = error.message; return; }
+  closeOv("pwModal"); sfxDing(); toast("Password updated");
 };
 $("logout").onclick = async () => { toggleMenu(false); await flushListen(); sb.auth.signOut(); };
 
@@ -380,6 +450,7 @@ async function loadAll() {
   if (p.error) { lists = []; say("Playlists unavailable: " + p.error.message + " (run the SQL in the script comment)"); }
   else lists = p.data || [];
   drawLists(); setNow();
+  setTimeout(backfillDurations, 3000);
   // opened from a Jam invite link: prefill the code (joining needs a tap so the phone allows audio)
   if (pendingJam && !jam.role) {
     $("jamCode").value = pendingJam; pendingJam = "";
@@ -444,10 +515,11 @@ function trackRow(t, i, extra, canEdit) {
     thumbHTML(t) +
     `<span class="meta"><span class="t">${esc(t.title)}</span><span class="by">${creditHTML(t)}</span></span>` +
     `<span class="tdate">${esc(ago(t.created_at))}</span>` +
+    `<span class="tdur">${durOf(t) ? fmt(durOf(t)) : ""}</span>` +
     `<span class="plays" data-plays="${esc(t.id)}">▶ ${t.plays || 0}</span>` +
     `<span class="tact"><button class="rbtn" data-add="${i}" aria-label="Add to playlist or queue" title="Add to playlist or queue">${PLUS}</button>${edit}${extra}</span></div>`;
 }
-const listHead = () => '<div class="lhead" aria-hidden="true"><span class="tn">#</span><span></span><span>Title</span><span class="tdate">Date added</span><span class="plays">Plays</span><span></span></div>';
+const listHead = () => '<div class="lhead" aria-hidden="true"><span class="tn">#</span><span></span><span>Title</span><span class="tdate">Date added</span><span class="plays">Plays</span><span class="tdur">Time</span><span></span></div>';
 
 // playlist cover: its own picture, else its first song's cover, else a pixel disc
 const plCoverUrl = (p) => sb.storage.from("music").getPublicUrl(p.cover_path).data.publicUrl;
@@ -507,6 +579,8 @@ function drawLists() {
   document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("go", b.dataset.v === tab));
   const swipeHint = isTouch ? '<div class="sub hint">Swipe right on a song to queue it</div>' : "";
   const plays = (list) => list.reduce((n, t) => n + (t.plays || 0), 0);
+  // " · 52 min" when we know how long the songs are
+  const len = (list) => { const k = list.filter(durOf); if (!k.length) return ""; const sec = k.reduce((n, t) => n + durOf(t), 0); const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60); return " \u00B7 " + (k.length < list.length ? "about " : "") + (h ? `${h} hr ${m} min` : `${m} min`); };
   let html = "";
 
   if (!query && mSearch) {
@@ -526,7 +600,7 @@ function drawLists() {
     shown = sorted(all);
     html = heroHTML({
       kind: "Everyone's music", title: "Library", art: '<span class="cover pix"><img src="icon-512.png" alt=""></span>', canPlay: all.length > 0,
-      meta: `<b>${esc(myName())}</b> · ${all.length} song${all.length === 1 ? "" : "s"} · ${plays(all)} listens`,
+      meta: `<b>${esc(myName())}</b> · ${all.length} song${all.length === 1 ? "" : "s"} · ${plays(all)} listens${len(all)}`,
       extras: `<label class="btn uplbtn" for="file">+ Upload</label><span class="grow"></span>${sortSel()}`,
     });
     if (!all.length) html += '<div class="empty">No music yet. Upload a song to start the world.</div>';
@@ -562,7 +636,7 @@ function drawLists() {
     html = heroHTML({
       kind: info ? "\u2713 Verified artist" : "Artist", title: name, back: true, canPlay: true,
       art: artistArt(name) + (mineA ? `<button class="hedit" data-aredit="1" aria-label="Change artist picture" title="Change picture">${ICON("ic-pen")}<span>Choose photo</span></button>` : ""),
-      meta: `${songs.length} song${songs.length === 1 ? "" : "s"} \u00B7 ${plays(songs)} listens` + (info ? ` \u00B7 claimed by <b>${esc(info.claimed_name || "someone")}</b>` : ""),
+      meta: `${songs.length} song${songs.length === 1 ? "" : "s"} \u00B7 ${plays(songs)} listens${len(songs)}` + (info ? ` \u00B7 claimed by <b>${esc(info.claimed_name || "someone")}</b>` : ""),
       extras: mineA ? `<button class="rbtn hbtn" data-aredit="1" aria-label="Edit artist profile" title="Edit artist profile (picture, bio)">${ICON("ic-pen")}</button>`
         : canClaim(name) ? '<button class="btn claimbtn" data-arclaim="1">Claim artist</button>' : "",
     }).replace('<div class="hart">', '<div class="hart round">');
@@ -577,7 +651,7 @@ function drawLists() {
     html = heroHTML({
       kind: mine ? "Playlist" : "Shared playlist", title: p.name, back: true, canPlay: shown.length > 0,
       art: plArtHTML(p) + (mine ? `<button class="hedit" data-pledit="${esc(p.id)}" aria-label="Change playlist cover" title="Change cover">${ICON("ic-pen")}<span>Choose photo</span></button>` : ""),
-      meta: `<b>${esc(p.owner)}</b> · ${shown.length} song${shown.length === 1 ? "" : "s"} · ${plays(shown)} listens`,
+      meta: `<b>${esc(p.owner)}</b> · ${shown.length} song${shown.length === 1 ? "" : "s"} · ${plays(shown)} listens${len(shown)}`,
       extras: mine ? `<button class="rbtn hbtn" data-pledit="${esc(p.id)}" aria-label="Edit playlist" title="Edit playlist (cover, name)">${ICON("ic-pen")}</button><span class="grow"></span><button class="rbtn rdel hbtn" data-dpl="${esc(p.id)}" aria-label="Delete playlist" title="Delete playlist">${ICON("ic-x")}</button>` : "",
     });
     if (!shown.length) html += `<div class="empty">${mine ? "Empty. Use + on any song in the Library to add it here." : "Nothing in here yet."}</div>`;
@@ -1308,7 +1382,7 @@ audio.onended = () => {
   }
   if (!advance() && "mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
 };
-audio.onloadedmetadata = syncPos;
+audio.onloadedmetadata = () => { syncPos(); const t = curTrack(); if (t && isFinite(audio.duration) && !audio.currentSrc.startsWith("data:")) rememberDur(t, audio.duration); };
 audio.onseeked = () => { lastT = audio.currentTime; syncPos(); jamPush(); };
 
 const fmt = (s) => (isFinite(s) ? Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0") : "0:00");
@@ -1484,11 +1558,34 @@ function parseName(fileName) {
 }
 const missingArtistCol = (error) => error && /artist/i.test(error.message || "");
 
+// how long is an audio file? (seconds, or null if the browser can't tell)
+function fileDuration(file) {
+  return new Promise((res) => {
+    const a = new Audio(), u = URL.createObjectURL(file);
+    const done = (v) => { URL.revokeObjectURL(u); res(v); };
+    a.preload = "metadata";
+    a.onloadedmetadata = () => done(isFinite(a.duration) && a.duration > 0 ? Math.round(a.duration) : null);
+    a.onerror = () => done(null);
+    setTimeout(() => done(null), 8000);
+    a.src = u;
+  });
+}
+const BIG_MB = 15;
+const mb = (n) => (n / 1048576).toFixed(n < 10485760 ? 1 : 0) + " MB";
 $("file").onchange = async (e) => {
   const files = [...e.target.files];
-  let ok = 0;
+  // big files use up the free storage and every play uses bandwidth: warn first
+  const big = files.filter((f) => f.size > BIG_MB * 1048576);
+  if (big.length) {
+    const list = big.slice(0, 4).map((f) => `\u2022 ${f.name} (${mb(f.size)})`).join("\n") + (big.length > 4 ? `\n\u2022 and ${big.length - 4} more` : "");
+    const goOn = confirm(`Heads up: ${big.length === 1 ? "this file is" : "these files are"} large:\n\n${list}\n\nBig files fill up your free storage fast, and every play uses bandwidth. MP3s at 128\u2013256 kbps are usually 3\u20138 MB per song.\n\nUpload anyway?`);
+    if (!goOn) { e.target.value = ""; return; }
+  }
+  let ok = 0, n = 0;
   for (const f of files) {
-    say("Uploading " + f.name + "...");
+    n++;
+    say(`Uploading ${files.length > 1 ? n + " of " + files.length + ": " : ""}${f.name}...`);
+    const dur = await fileDuration(f);
     const safe = f.name.replace(/[^\w.\-]+/g, "_");
     const path = `${me.id}/${Date.now()}_${safe}`;
     const up = await sb.storage.from("music").upload(path, f, { contentType: f.type || "audio/mpeg" });
@@ -1496,7 +1593,11 @@ $("file").onchange = async (e) => {
     const meta = parseName(f.name);
     const row = { title: meta.title, path, user_id: me.id, uploader: myName() };
     if (meta.artist) row.artist = meta.artist;
+    if (dur) row.duration = dur;
     let { error } = await sb.from("tracks").insert(row);
+    if (error && /duration/i.test(error.message || "") && row.duration) { // duration column not added yet
+      delete row.duration; ({ error } = await sb.from("tracks").insert(row));
+    }
     if (missingArtistCol(error)) { // artist column not added yet: save without it
       delete row.artist; row.title = f.name.replace(/\.[^.]+$/, "");
       ({ error } = await sb.from("tracks").insert(row));

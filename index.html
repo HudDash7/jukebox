@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="budsbox-build" content="b5">
+<meta name="budsbox-build" content="b6">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -16,7 +16,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<link rel="stylesheet" href="css/app.css?v=b5">
+<link rel="stylesheet" href="css/app.css?v=b6">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs id="defs">
@@ -119,6 +119,7 @@
         <h3>Fun</h3>
         <button id="lbOpen" class="lbopen"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-trophy"/></svg>Leaderboard</button>
         <h3>Account</h3>
+        <button id="pwChange">Change password</button>
         <button id="logout">Log out</button>
       </div>
     </div>
@@ -141,6 +142,7 @@
   <input id="email" type="email" placeholder="email" autocomplete="email">
   <input id="pass" type="password" placeholder="password" autocomplete="current-password">
   <div class="row"><button class="go" id="login">Log in</button><button id="signup">Sign up</button></div>
+  <button class="linkbtn" id="forgot" type="button">Forgot password?</button>
   <div class="msg" id="authMsg"></div>
 </div>
 
@@ -262,6 +264,17 @@
     </div>
     <div class="msg" id="jamMsg"></div>
     <div class="row"><button id="jamClose">Done</button></div>
+  </div>
+</div>
+
+<!-- New password (after a reset email, or from Settings) -->
+<div id="pwModal" class="overlay hide">
+  <div class="panel">
+    <div>Set a new password</div>
+    <input id="pw1" type="password" placeholder="new password (6+ characters)" autocomplete="new-password" aria-label="New password">
+    <input id="pw2" type="password" placeholder="type it again" autocomplete="new-password" aria-label="Confirm new password">
+    <div class="msg" id="pwMsg"></div>
+    <div class="row"><button class="go" id="pwSave">Save password</button><button id="pwCancel">Cancel</button></div>
   </div>
 </div>
 
@@ -433,7 +446,7 @@
 <div id="toast" class="hide" role="status" aria-live="polite"></div>
 <audio id="audio" preload="auto" playsinline></audio>
 
-<script src="js/app.js?v=b5"></script>
-<script>/* older copies look for this line to spot updates: const APP_BUILD = "b5"; */</script>
+<script src="js/app.js?v=b6"></script>
+<script>/* older copies look for this line to spot updates: const APP_BUILD = "b6"; */</script>
 </body>
 </html>

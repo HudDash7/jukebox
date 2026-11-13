@@ -143,7 +143,8 @@ input[type=file]{display:none}
 .sech{font-size:12px;margin:20px 0 8px}
 .newpl{flex-wrap:nowrap;margin-bottom:8px}.newpl input{margin:0}
 /* rows: flat, compact, highlight on hover; actions appear on hover (always on touch) */
-.lhead,.trow{display:grid;grid-template-columns:32px 40px minmax(0,1fr) 120px 64px 96px;align-items:center;column-gap:12px}
+.lhead,.trow{display:grid;grid-template-columns:32px 40px minmax(0,1fr) 120px 64px 48px 96px;align-items:center;column-gap:12px}
+.tdur{font-size:9px;color:#b9c2b4;text-align:right;white-space:nowrap}
 .lhead{position:sticky;top:0;z-index:1;font-size:9px;color:#b9c2b4;padding:8px 10px;margin:0 0 6px;border-bottom:2px solid #ffffff1f;background:var(--dark)}
 .trow{margin:0;padding:6px 10px;background:transparent;border:0;min-height:56px}
 .trow:hover,.trow:focus-within{background:#ffffff10}
@@ -173,7 +174,7 @@ input[type=file]{display:none}
   .hbar{gap:8px}
   .lhead{display:none}
   .trow{grid-template-columns:44px minmax(0,1fr) auto auto;column-gap:8px;padding:6px 4px}
-  .trow .tn,.trow .tdate{display:none}
+  .trow .tn,.trow .tdate,.trow .tdur{display:none}
   .trow .plays{font-size:9px;color:#b9c2b4;white-space:nowrap}
   .trow .cover,.trow .disc,.trow .disc svg{width:44px;height:44px}
   .sortw .sub{display:none}
@@ -485,3 +486,9 @@ button,.btn,input[type=text],input[type=email],input[type=password],input[type=s
 .pbtn.on::after{border-radius:50%}
 .hedit svg{border-radius:var(--r-sm)}
 #lists .track[data-i]::before{border-radius:var(--r) 0 0 var(--r)}
+
+/* text-style button (forgot password) */
+.linkbtn{background:transparent;border:0;outline:0;padding:8px 0 0;margin:0;font-size:9px;color:#dfe7da;text-decoration:underline;text-underline-offset:3px;text-shadow:none}
+.linkbtn:hover{background:transparent;color:#fff}
+.linkbtn:active{transform:none}
+#pwChange{margin-bottom:6px}
