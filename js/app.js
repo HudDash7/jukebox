@@ -41,6 +41,19 @@ ARTIST NAMES NEED THIS. Run once:
 
 alter table public.tracks add column if not exists artist text;
 
+FOLLOWING ARTISTS NEEDS THIS. Run once:
+
+create table if not exists public.follows (
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  artist_name text not null,
+  created_at timestamptz not null default now(),
+  primary key (user_id, artist_name)
+);
+alter table public.follows enable row level security;
+create policy "follows read" on public.follows for select to authenticated using (true);
+create policy "follows own add" on public.follows for insert to authenticated with check (auth.uid() = user_id);
+create policy "follows own remove" on public.follows for delete to authenticated using (auth.uid() = user_id);
+
 LIKED SONGS NEED THIS. Run once:
 
 create table if not exists public.likes (
@@ -471,6 +484,147 @@ setInterval(() => {
 }, 1000);
 paintSleep();
 
+/* ---------- Recently played (kept on this device) ---------- */
+const RECENT_KEY = () => "jukebox_recent_" + (me?.id || "");
+function getRecent() { try { return JSON.parse(localStorage.getItem(RECENT_KEY()) || "[]"); } catch (e) { return []; } }
+function rememberRecent(k) {
+  if (!me || !k) return;
+  const r = [k, ...getRecent().filter((x) => x !== k)].slice(0, 12);
+  try { localStorage.setItem(RECENT_KEY(), JSON.stringify(r)); } catch (e) {}
+}
+// a tile for each recent item that still exists
+function recentTiles() {
+  const tiles = [];
+  for (const k of getRecent()) {
+    let art = "", name = "", round = false;
+    if (k === "liked") { art = '<span class="likedtile"><svg viewBox="0 0 9 9" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-heart-f"/></svg></span>'; name = "Liked Songs"; }
+    else if (k.startsWith("pl:")) { const p = lists.find((x) => x.id === k.slice(3)); if (!p) continue; art = plArtHTML(p); name = p.name; }
+    else if (k.startsWith("ar:")) { const n = k.slice(3); if (!songsBy(n).length) continue; art = artistArt(n); name = n; round = true; }
+    else if (k.startsWith("t:")) { const t = all.find((x) => String(x.id) === k.slice(2)); if (!t) continue; art = thumbHTML(t); name = t.title; }
+    tiles.push(`<button class="rtile" data-recent="${esc(k)}" title="${esc(name)}"><span class="rart${round ? " round" : ""}">${art}</span><span class="rname">${esc(name)}</span></button>`);
+    if (tiles.length >= 8) break;
+  }
+  return tiles.length ? `<h2 class="sech">Recently played</h2><div class="recent">${tiles.join("")}</div>` : "";
+}
+function openRecent(k) {
+  if (k === "liked") return go("liked");
+  if (k.startsWith("pl:")) return go(k);
+  if (k.startsWith("ar:")) return goArtist(k.slice(3));
+  const t = all.find((x) => String(x.id) === k.slice(2));
+  if (t) { ctxName = "Library"; rememberRecent(k); playTrack(t, sorted(all)); drawLists(); }
+}
+
+/* ---------- following artists ---------- */
+let follows = new Map(), followerCount = new Map(), followsLocal = false;
+const FOLLOW_KEY = () => "jukebox_follows_" + (me?.id || "");
+const isFollowing = (name) => follows.has(name);
+async function loadFollows() {
+  const { data, error } = await sb.from("follows").select("user_id,artist_name,created_at");
+  followerCount = new Map();
+  if (error) {
+    followsLocal = /follows|schema cache|does not exist/i.test(error.message || "");
+    try { follows = new Map(JSON.parse(localStorage.getItem(FOLLOW_KEY()) || "[]")); } catch (e) { follows = new Map(); }
+    return;
+  }
+  followsLocal = false; follows = new Map();
+  for (const r of data || []) {
+    followerCount.set(r.artist_name, (followerCount.get(r.artist_name) || 0) + 1);
+    if (r.user_id === me.id) follows.set(r.artist_name, r.created_at);
+  }
+}
+async function toggleFollow(name) {
+  const was = follows.has(name);
+  if (was) { follows.delete(name); followerCount.set(name, Math.max(0, (followerCount.get(name) || 1) - 1)); }
+  else { follows.set(name, new Date().toISOString()); followerCount.set(name, (followerCount.get(name) || 0) + 1); }
+  drawLists(); sfxClick(); toast(was ? "Unfollowed " + name : "Following " + name);
+  if (followsLocal) { try { localStorage.setItem(FOLLOW_KEY(), JSON.stringify([...follows])); } catch (e) {} return; }
+  const r = was ? await sb.from("follows").delete().eq("user_id", me.id).eq("artist_name", name)
+                : await sb.from("follows").insert({ user_id: me.id, artist_name: name });
+  if (r.error) {
+    if (/follows|schema cache|does not exist/i.test(r.error.message || "")) { followsLocal = true; try { localStorage.setItem(FOLLOW_KEY(), JSON.stringify([...follows])); } catch (e) {} return; }
+    await loadFollows(); drawLists(); say(r.error.message);
+  }
+}
+// Home: songs from artists you follow added in the last 2 weeks
+function newFromFollowed() {
+  if (!follows.size) return "";
+  const since = new Date(Date.now() - 14 * 86400000).toISOString();
+  const fresh = all.filter((t) => hasArtist(t) && follows.has(artistOf(t)) && String(t.created_at || "") > since)
+    .sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || ""))).slice(0, 6);
+  if (!fresh.length) return "";
+  return '<h2 class="sech">New from artists you follow</h2><div class="recent">' + fresh.map((t) =>
+    `<button class="rtile" data-recent="t:${esc(t.id)}" title="${esc(t.title)}"><span class="rart">${thumbHTML(t)}</span><span class="rname">${esc(t.title)}<br><span class="sub">${esc(artistOf(t))} · ${esc(ago(t.created_at))}</span></span></button>`).join("") + "</div>";
+}
+// a heads-up when something new arrived since your last visit
+function noteNewFromFollowed() {
+  const key = "jukebox_seen_" + me.id;
+  let last = ""; try { last = localStorage.getItem(key) || ""; } catch (e) {}
+  try { localStorage.setItem(key, new Date().toISOString()); } catch (e) {}
+  if (!last || !follows.size) return;
+  const n = all.filter((t) => hasArtist(t) && follows.has(artistOf(t)) && String(t.created_at || "") > last && t.user_id !== me.id).length;
+  if (n) setTimeout(() => toast(`${n} new song${n === 1 ? "" : "s"} from artists you follow`), 1200);
+}
+
+/* ---------- Wrapped: your listening recap ---------- */
+let wrapPeriod = "month";
+function wrapStats(period) {
+  const now = new Date();
+  const from = period === "month" ? new Date(now.getFullYear(), now.getMonth(), 1) : period === "year" ? new Date(now.getFullYear(), 0, 1) : new Date(0);
+  const iso = from.toISOString();
+  const rows = (lb.rows || []).filter((r) => String(r.created_at) >= iso);
+  const byId = new Map(all.map((t) => [String(t.id), t]));
+  const mine = rows.filter((r) => r.user_id === me.id && byId.has(String(r.track_id)));
+  const secBySong = new Map(), secByArtist = new Map(), secByDay = new Map(), songs = new Set();
+  let sec = 0, listens = 0;
+  for (const r of mine) {
+    const s = +r.seconds || 0, t = byId.get(String(r.track_id));
+    sec += s; if (r.counted !== false) listens++;
+    songs.add(t.id);
+    secBySong.set(t.id, (secBySong.get(t.id) || 0) + s);
+    if (hasArtist(t)) secByArtist.set(artistOf(t), (secByArtist.get(artistOf(t)) || 0) + s);
+    const d = String(r.created_at).slice(0, 10); secByDay.set(d, (secByDay.get(d) || 0) + s);
+  }
+  const top = (m, n) => [...m.entries()].filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, n);
+  const topSongs = top(secBySong, 5).map(([id, s]) => ({ t: all.find((x) => x.id === id), s }));
+  const [topArtist] = top(secByArtist, 1);
+  // where you rank among everyone, overall and for your top artist
+  const everyone = new Map(), onArtist = new Map();
+  for (const r of rows) {
+    const t = byId.get(String(r.track_id)); if (!t) continue;
+    const s = +r.seconds || 0;
+    everyone.set(r.user_id, (everyone.get(r.user_id) || 0) + s);
+    if (topArtist && hasArtist(t) && artistOf(t) === topArtist[0]) onArtist.set(r.user_id, (onArtist.get(r.user_id) || 0) + s);
+  }
+  const rankOf = (m) => { const list = [...m.entries()].filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]); const i = list.findIndex(([u]) => u === me.id); return i < 0 ? null : { rank: i + 1, of: list.length }; };
+  const [bigDay] = top(secByDay, 1);
+  return { sec, listens, songs: songs.size, topSongs, topArtist, overall: rankOf(everyone), fan: topArtist ? rankOf(onArtist) : null, bigDay };
+}
+function renderWrap() {
+  document.querySelectorAll("#wrapTabs button").forEach((b) => { const on = b.dataset.wp === wrapPeriod; b.classList.toggle("go", on); b.setAttribute("aria-selected", String(on)); });
+  const box = $("wrapBody");
+  if (!lb.rows) { box.innerHTML = '<div class="empty">Loading...</div>'; return; }
+  if (lb.noTable || lb.oldSchema) { box.innerHTML = '<div class="empty">Wrapped uses your listening time. Run the "LEADERBOARD" SQL from the top of js/app.js in Supabase first (including the seconds/counted columns).</div>'; return; }
+  const w = wrapStats(wrapPeriod);
+  const label = { month: new Date().toLocaleString(undefined, { month: "long" }), year: String(new Date().getFullYear()), all: "all time" }[wrapPeriod];
+  if (!w.sec && !w.listens) { box.innerHTML = `<div class="empty">No listening recorded for ${esc(label)} yet. Press play and come back!</div>`; return; }
+  const ord = (n) => n + (n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th");
+  let h = `<div class="wcard w1"><div class="wsmall">${esc(label === "all time" ? "All time" : label)}, you listened for</div><div class="wbig">${Math.round(w.sec / 60).toLocaleString()} minutes</div>
+    <div class="wsmall">${w.listens} listen${w.listens === 1 ? "" : "s"} · ${w.songs} different song${w.songs === 1 ? "" : "s"}</div></div>`;
+  if (w.topSongs.length) h += `<div class="wcard w2"><div class="wsmall">Your top songs</div>${w.topSongs.map((x, i) => `<div class="wrow"><span class="wn">${i + 1}</span>${thumbHTML(x.t)}<span class="meta"><span class="t">${esc(x.t.title)}</span><span class="by">${esc(artistOf(x.t))} · ${fmtLong(x.s)}</span></span></div>`).join("")}</div>`;
+  if (w.topArtist) h += `<div class="wcard w3"><div class="wsmall">Your top artist</div><div class="wart">${artistArt(w.topArtist[0])}</div><div class="wbig">${esc(w.topArtist[0])}</div>
+    <div class="wsmall">${fmtLong(w.topArtist[1])} together${w.fan ? (w.fan.rank === 1 ? ` · you're their #1 listener on Budsbox!` : ` · you're their ${ord(w.fan.rank)} biggest listener`) : ""}</div></div>`;
+  if (w.overall) h += `<div class="wcard w4"><div class="wsmall">Among everyone on Budsbox</div><div class="wbig">${ord(w.overall.rank)} of ${w.overall.of}</div><div class="wsmall">for time listened</div></div>`;
+  if (w.bigDay) h += `<div class="wcard w5"><div class="wsmall">Your biggest day</div><div class="wbig">${esc(new Date(w.bigDay[0] + "T12:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" }))}</div><div class="wsmall">${fmtLong(w.bigDay[1])} of music</div></div>`;
+  box.innerHTML = h;
+}
+async function openWrap() {
+  toggleMenu(false); renderWrap(); openOv("wrapModal");
+  await lbLoad(true); if (isOpen("wrapModal")) renderWrap();
+}
+$("wrapOpen").onclick = openWrap;
+$("wrapClose").onclick = () => closeOv("wrapModal");
+$("wrapTabs").onclick = (e) => { const b = e.target.closest("[data-wp]"); if (b) { wrapPeriod = b.dataset.wp; renderWrap(); } };
+
 /* ---------- password: forgot + change ---------- */
 $("forgot").onclick = async () => {
   const email = $("email").value.trim();
@@ -531,7 +685,7 @@ async function loadAll() {
     sb.from("playlists").select("*").order("created_at", { ascending: true }),
     sb.from("artists").select("*"),
   ]);
-  await loadLikes();
+  await Promise.all([loadLikes(), loadFollows()]);
   if (ar.error) { artistInfo = new Map(); artistsNoTable = /artists|schema cache|does not exist/i.test(ar.error.message || ""); }
   else { artistInfo = new Map((ar.data || []).map((r) => [r.name, r])); artistsNoTable = false; }
   if (t.error) { say(t.error.message); return; }
@@ -547,6 +701,7 @@ async function loadAll() {
   else lists = p.data || [];
   drawLists(); setNow();
   setTimeout(backfillDurations, 3000);
+  if (!loadAll.noted) { loadAll.noted = true; noteNewFromFollowed(); }
   // opened from a Jam invite link: prefill the code (joining needs a tap so the phone allows audio)
   if (pendingJam && !jam.role) {
     $("jamCode").value = pendingJam; pendingJam = "";
@@ -587,7 +742,7 @@ function artistFallbackArt(name) {
 function artistRow(name) {
   const n = songsBy(name).length;
   return `<div class="track trow prow arow" tabindex="0" data-ar="${esc(name)}"><span class="lcov round">${artistArt(name)}</span>
-    <span class="meta"><span class="t">${esc(name)}</span><span class="by">Artist · ${n} song${n === 1 ? "" : "s"}</span></span><span class="tact"></span></div>`;
+    <span class="meta"><span class="t">${esc(name)}</span><span class="by">Artist · ${n} song${n === 1 ? "" : "s"}${isFollowing(name) ? " \u00B7 Following" : ""}</span></span><span class="tact"></span></div>`;
 }
 function goArtist(name) { if (name && songsBy(name).length) { if (fullOpen()) closeFull(); go("ar:" + name); } }
 
@@ -694,7 +849,7 @@ function drawLists() {
     if (pls.length) { html += '<h2 class="sech">Playlists</h2>'; pls.forEach((p) => { html += plRow(p); }); }
   } else if (view === "lib") {
     shown = sorted(all);
-    html = heroHTML({
+    html = recentTiles() + newFromFollowed() + heroHTML({
       kind: "Everyone's music", title: "Library", art: '<span class="cover pix"><img src="icon-512.png" alt=""></span>', canPlay: all.length > 0,
       meta: `<b>${esc(myName())}</b> · ${all.length} song${all.length === 1 ? "" : "s"} · ${plays(all)} listens${len(all)}`,
       extras: `<label class="btn uplbtn" for="file">+ Upload</label><span class="grow"></span>${sortSel()}`,
@@ -745,9 +900,10 @@ function drawLists() {
     html = heroHTML({
       kind: info ? "\u2713 Verified artist" : "Artist", title: name, back: true, canPlay: true,
       art: artistArt(name) + (mineA ? `<button class="hedit" data-aredit="1" aria-label="Change artist picture" title="Change picture">${ICON("ic-pen")}<span>Choose photo</span></button>` : ""),
-      meta: `${songs.length} song${songs.length === 1 ? "" : "s"} \u00B7 ${plays(songs)} listens${len(songs)}` + (info ? ` \u00B7 claimed by <b>${esc(info.claimed_name || "someone")}</b>` : ""),
-      extras: mineA ? `<button class="rbtn hbtn" data-aredit="1" aria-label="Edit artist profile" title="Edit artist profile (picture, bio)">${ICON("ic-pen")}</button>`
-        : canClaim(name) ? '<button class="btn claimbtn" data-arclaim="1">Claim artist</button>' : "",
+      meta: `${songs.length} song${songs.length === 1 ? "" : "s"} \u00B7 ${plays(songs)} listens${len(songs)}` + (followerCount.get(name) ? ` \u00B7 ${followerCount.get(name)} follower${followerCount.get(name) === 1 ? "" : "s"}` : "") + (info ? ` \u00B7 claimed by <b>${esc(info.claimed_name || "someone")}</b>` : ""),
+      extras: `<button class="btn followbtn${isFollowing(name) ? " on" : ""}" data-follow="1" aria-pressed="${isFollowing(name)}">${isFollowing(name) ? "Following" : "Follow"}</button>` +
+        (mineA ? `<button class="rbtn hbtn" data-aredit="1" aria-label="Edit artist profile" title="Edit artist profile (picture, bio)">${ICON("ic-pen")}</button>`
+        : canClaim(name) ? '<button class="btn claimbtn" data-arclaim="1">Claim artist</button>' : ""),
     }).replace('<div class="hart">', '<div class="hart round">');
     if (info && info.bio && info.bio.trim()) html += `<div class="arbio"><h2 class="sech">About</h2><p>${esc(info.bio.trim())}</p></div>`;
     html += '<h2 class="sech">Popular</h2>' + swipeHint + listHead();
@@ -899,6 +1055,8 @@ $("lists").onclick = (e) => {
   if ($("lists").classList.contains("reordering") && e.target.closest(".track[data-i]")) return; // no playing while reordering
   if (b) {
     if (b.dataset.like !== undefined) return toggleLike(shown[+b.dataset.like]);
+    if (b.dataset.recent) return openRecent(b.dataset.recent);
+    if (b.dataset.follow) return toggleFollow(view.slice(3));
     if (b.dataset.add !== undefined) return openPicker(shown[+b.dataset.add]);
     if (b.dataset.edit !== undefined) return openEdit(shown[+b.dataset.edit]);
     if (b.dataset.rm !== undefined) return removeFromPlaylist(+b.dataset.rm);
@@ -950,6 +1108,8 @@ function pickPlay(t, list, wholeList) {
   // "Playing from" label for the full-screen player
   const pl = view.startsWith("pl:") && lists.find((x) => x.id === view.slice(3));
   ctxName = query ? 'Search "' + $("q").value.trim() + '"' : pl ? pl.name : view.startsWith("ar:") ? view.slice(3) : view === "liked" ? "Liked Songs" : "Library";
+  // remember for "Recently played" on Home: the collection you played from, or the song itself
+  rememberRecent(view.startsWith("pl:") || view.startsWith("ar:") || view === "liked" ? (query ? "t:" + t.id : view) : "t:" + t.id);
   playTrack(t, list);
 }
 

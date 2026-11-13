@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="budsbox-build" content="b7">
+<meta name="budsbox-build" content="b8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -16,7 +16,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<link rel="stylesheet" href="css/app.css?v=b7">
+<link rel="stylesheet" href="css/app.css?v=b8">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs id="defs">
@@ -121,6 +121,7 @@
         </div>
         <div class="sub" id="abHint" style="margin-top:4px"></div>
         <h3>Fun</h3>
+        <button id="wrapOpen" class="lbopen"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-note"/></svg>Your Wrapped</button>
         <button id="lbOpen" class="lbopen"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-trophy"/></svg>Leaderboard</button>
         <h3>Account</h3>
         <button id="pwChange">Change password</button>
@@ -270,6 +271,16 @@
     </div>
     <div class="msg" id="jamMsg"></div>
     <div class="row"><button id="jamClose">Done</button></div>
+  </div>
+</div>
+
+<!-- Wrapped -->
+<div id="wrapModal" class="overlay hide">
+  <div class="panel wrappanel">
+    <div class="lbtitle"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-note"/></svg>Your Budsbox Wrapped</div>
+    <div class="row seg" id="wrapTabs" role="tablist"><button data-wp="month" role="tab">This month</button><button data-wp="year" role="tab">This year</button><button data-wp="all" role="tab">All time</button></div>
+    <div id="wrapBody"></div>
+    <div class="row"><button class="go" id="wrapClose">Done</button></div>
   </div>
 </div>
 
@@ -465,7 +476,7 @@
 <div id="toast" class="hide" role="status" aria-live="polite"></div>
 <audio id="audio" preload="auto" playsinline></audio>
 
-<script src="js/app.js?v=b7"></script>
-<script>/* older copies look for this line to spot updates: const APP_BUILD = "b7"; */</script>
+<script src="js/app.js?v=b8"></script>
+<script>/* older copies look for this line to spot updates: const APP_BUILD = "b8"; */</script>
 </body>
 </html>
