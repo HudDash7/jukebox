@@ -76,6 +76,13 @@ SONG LENGTHS NEED THIS. Run once:
 
 alter table public.tracks add column if not exists duration integer;
 
+-- lets anyone fill in a length that's still missing (it never changes one that's set)
+create or replace function public.set_duration(tid text, sec integer)
+returns void language sql security definer set search_path = public as $$
+  update public.tracks set duration = sec where id::text = tid and duration is null and sec between 1 and 36000;
+$$;
+grant execute on function public.set_duration(text, integer) to authenticated;
+
 LEADERBOARD (who listened to what, and when) NEEDS THIS. Run once:
 
 create table if not exists public.listens (
@@ -381,15 +388,21 @@ function rememberDur(t, sec) {
     durCache[t.id] = sec; try { localStorage.setItem("jukebox_dur", JSON.stringify(durCache)); } catch (e) {}
     document.querySelectorAll("#lists .trow[data-i]").forEach((el) => { if (shown[+el.dataset.i]?.id === t.id) { const c = el.querySelector(".tdur"); if (c) c.textContent = fmt(sec); } });
   }
-  if (t.user_id === me?.id && !durNoCol) sb.from("tracks").update({ duration: sec }).eq("id", t.id).then((r) => {
+  if (durNoCol) return;
+  if (t.user_id === me?.id) sb.from("tracks").update({ duration: sec }).eq("id", t.id).then((r) => {
     if (r.error) { if (/duration/i.test(r.error.message || "")) durNoCol = true; } else t.duration = sec;
   });
+  else if (!durNoRpc) sb.rpc("set_duration", { tid: String(t.id), sec }).then((r) => {
+    if (r.error) durNoRpc = true; else t.duration = sec; // function not set up yet: keep it on this device
+  });
 }
+let durNoRpc = false;
 let durNoCol = false, durBusy = false;
 async function backfillDurations() {
   if (durBusy || !me || durNoCol) return;
   durBusy = true;
-  const todo = all.filter((t) => t.user_id === me.id && !t.duration).slice(0, 40);
+  // your songs first, then everyone else's that are still missing a length
+  const todo = all.filter((t) => !t.duration).sort((a, b) => (b.user_id === me.id) - (a.user_id === me.id)).slice(0, 60);
   for (const t of todo) {
     if (durNoCol || !me) break;
     if (durCache[t.id]) { rememberDur(t, durCache[t.id]); continue; }
@@ -937,8 +950,8 @@ function trackRow(t, i, extra, canEdit) {
     thumbHTML(t) +
     `<span class="meta"><span class="t">${esc(t.title)}</span><span class="by">${creditHTML(t)}</span></span>` +
     `<span class="tdate">${esc(ago(t.created_at))}</span>` +
-    `<span class="tdur">${durOf(t) ? fmt(durOf(t)) : ""}</span>` +
     `<span class="plays" data-plays="${esc(t.id)}">▶ ${t.plays || 0}</span>` +
+    `<span class="tdur">${durOf(t) ? fmt(durOf(t)) : ""}</span>` +
     `<span class="tact"><button class="rbtn lk${isLiked(t) ? " on" : ""}" data-like="${i}" aria-pressed="${isLiked(t)}" aria-label="Like" title="${isLiked(t) ? "Remove from" : "Add to"} Liked Songs"><svg viewBox="0 0 9 9" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-heart${isLiked(t) ? "-f" : ""}"/></svg></button><button class="rbtn" data-add="${i}" aria-label="Add to playlist or queue" title="Add to playlist or queue">${PLUS}</button>${edit}${extra}</span></div>`;
 }
 const listHead = () => '<div class="lhead" aria-hidden="true"><span class="tn">#</span><span></span><span>Title</span><span class="tdate">Date added</span><span class="plays">Plays</span><span class="tdur">Time</span><span></span></div>';
