@@ -41,6 +41,44 @@ ARTIST NAMES NEED THIS. Run once:
 
 alter table public.tracks add column if not exists artist text;
 
+FRIENDS (requests + friend activity) NEED THIS. Run once:
+
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  name text not null,
+  updated_at timestamptz not null default now()
+);
+alter table public.profiles enable row level security;
+create policy "profiles read" on public.profiles for select to authenticated using (true);
+create policy "profiles own insert" on public.profiles for insert to authenticated with check (auth.uid() = id);
+create policy "profiles own update" on public.profiles for update to authenticated using (auth.uid() = id) with check (auth.uid() = id);
+
+create table if not exists public.friendships (
+  requester uuid not null references auth.users(id) on delete cascade,
+  addressee uuid not null references auth.users(id) on delete cascade,
+  status text not null default 'pending' check (status in ('pending', 'accepted')),
+  created_at timestamptz not null default now(),
+  primary key (requester, addressee),
+  check (requester <> addressee)
+);
+alter table public.friendships enable row level security;
+create policy "friendships mine" on public.friendships for select to authenticated using (auth.uid() in (requester, addressee));
+create policy "friendships request" on public.friendships for insert to authenticated with check (auth.uid() = requester and status = 'pending');
+create policy "friendships accept" on public.friendships for update to authenticated using (auth.uid() = addressee) with check (auth.uid() = addressee and status = 'accepted');
+create policy "friendships remove" on public.friendships for delete to authenticated using (auth.uid() in (requester, addressee));
+
+create table if not exists public.activity (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  track_id text,
+  playing boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+alter table public.activity enable row level security;
+create policy "activity own" on public.activity for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "activity friends read" on public.activity for select to authenticated using (exists (
+  select 1 from public.friendships f where f.status = 'accepted' and (
+    (f.requester = auth.uid() and f.addressee = activity.user_id) or (f.addressee = auth.uid() and f.requester = activity.user_id))));
+
 STORAGE CHECK (Settings > Storage & downloads) NEEDS THIS to list your own files. Run once:
 
 create policy "music list own files" on storage.objects for select to authenticated
@@ -359,7 +397,7 @@ function render() {
   $("searchBox").classList.toggle("hide", !me);
   $("menuWrap").classList.toggle("invis", !me);
   toggleMenu(false);
-  if (me) { paintWho(); paintAb(); loadAll(); }
+  if (me) { paintWho(); paintAb(); loadAll(); syncProfile().then(loadFriends); }
   else { if (jam.role) jamLeave(true); audio.pause(); nowId = null; ctxId = null; queue = []; userQueue = []; all = []; lists = []; clearSearch(); setNow(); updateQBtn(); }
   syncSizes();
 }
@@ -904,6 +942,163 @@ $("bgNoPhoto").onclick = () => {
 };
 applyAppearance();
 
+/* ---------- friends + friend activity ----------
+   profiles: everyone's display name (so friends can be found)
+   friendships: requests and accepted friends
+   activity: what you're playing; only you and accepted friends can read it */
+const fr = { rows: [], names: new Map(), act: new Map(), noTable: false, loaded: false };
+let frShare = (() => { try { return localStorage.getItem("jukebox_share") !== "off"; } catch (e) { return true; } })();
+const FR_TABLES = /profiles|friendships|activity|schema cache|does not exist/i;
+const otherOf = (r) => (r.requester === me.id ? r.addressee : r.requester);
+function frStatus(uid) {
+  const r = fr.rows.find((x) => otherOf(x) === uid);
+  if (!r) return null;
+  if (r.status === "accepted") return "friend";
+  return r.requester === me.id ? "sent" : "received";
+}
+const friendIds = () => fr.rows.filter((r) => r.status === "accepted").map(otherOf);
+const frName = (uid) => fr.names.get(uid) || "Player";
+const frInitial = (uid) => (frName(uid).trim()[0] || "?").toUpperCase();
+async function syncProfile() {
+  if (!me) return;
+  const r = await sb.from("profiles").upsert({ id: me.id, name: myName(), updated_at: new Date().toISOString() });
+  if (r.error && FR_TABLES.test(r.error.message || "")) fr.noTable = true;
+}
+async function loadFriends() {
+  if (!me) return;
+  const f = await sb.from("friendships").select("*");
+  if (f.error) { fr.noTable = FR_TABLES.test(f.error.message || ""); fr.loaded = true; paintFriends(); return; }
+  fr.noTable = false;
+  fr.rows = (f.data || []).filter((r) => r.requester === me.id || r.addressee === me.id);
+  const ids = [...new Set(fr.rows.map(otherOf))];
+  if (ids.length) {
+    const p = await sb.from("profiles").select("id,name").in("id", ids);
+    for (const x of (p.data || [])) fr.names.set(x.id, x.name);
+  }
+  const fids = friendIds();
+  fr.act = new Map();
+  if (fids.length) {
+    const a = await sb.from("activity").select("*").in("user_id", fids);
+    for (const x of (a.data || [])) if (fids.includes(x.user_id)) fr.act.set(x.user_id, x);
+  }
+  fr.loaded = true;
+  paintFriends();
+  if (view === "lib" && !query) drawLists();
+}
+// "listening now" if they're playing and their app checked in within the last few minutes
+const isLive = (a) => a && a.playing && a.track_id && Date.now() - Date.parse(a.updated_at) < 5 * 60000;
+function paintFriends() {
+  const incoming = fr.rows.filter((r) => r.status === "pending" && r.addressee === me.id).length;
+  document.querySelectorAll(".frbadge").forEach((b) => { b.textContent = incoming || ""; b.classList.toggle("hide", !incoming); });
+  if (!isOpen("friendsModal")) return;
+  $("frSetup").classList.toggle("hide", !fr.noTable);
+  $("frBody").classList.toggle("hide", fr.noTable);
+  $("frShare").checked = frShare;
+  if (fr.noTable) return;
+  // activity, most recent first
+  const fids = friendIds().sort((a, b) => String(fr.act.get(b)?.updated_at || "").localeCompare(String(fr.act.get(a)?.updated_at || "")));
+  $("frActivity").innerHTML = fids.length ? fids.map((uid) => {
+    const a = fr.act.get(uid), t = a && a.track_id ? all.find((x) => String(x.id) === String(a.track_id)) : null, live = isLive(a);
+    return `<div class="frrow"><span class="frav${live ? " live" : ""}">${esc(frInitial(uid))}</span>
+      <span class="meta${t ? " frsong" : ""}" ${t ? `data-frplay="${esc(t.id)}" role="button" tabindex="0" title="Play ${esc(t.title)}"` : ""}><span class="t">${esc(frName(uid))}</span>
+      <span class="by">${t ? `${esc(t.title)} · ${esc(artistOf(t))}` : "Nothing played yet"}</span></span>
+      <span class="frwhen${live ? " live" : ""}">${live ? "● Listening now" : a && a.updated_at ? esc(ago(a.updated_at)) : ""}</span></div>`;
+  }).join("") : '<div class="sub">No friends yet. Search for someone below to add them.</div>';
+  const reqs = fr.rows.filter((r) => r.status === "pending");
+  $("frReqWrap").classList.toggle("hide", !reqs.length);
+  $("frRequests").innerHTML = reqs.map((r) => {
+    const uid = otherOf(r), mine = r.requester === me.id;
+    return `<div class="frrow"><span class="frav">${esc(frInitial(uid))}</span><span class="meta"><span class="t">${esc(frName(uid))}</span><span class="by">${mine ? "Request sent" : "Wants to be friends"}</span></span>
+      ${mine ? `<button data-frcancel="${uid}">Cancel</button>` : `<button class="go" data-fraccept="${uid}">Accept</button><button data-frdecline="${uid}">Decline</button>`}</div>`;
+  }).join("");
+  const fl = friendIds();
+  $("frListWrap").classList.toggle("hide", !fl.length);
+  $("frList").innerHTML = fl.map((uid) => `<div class="frrow"><span class="frav">${esc(frInitial(uid))}</span><span class="meta"><span class="t">${esc(frName(uid))}</span></span><button class="del" data-frremove="${uid}">Remove</button></div>`).join("");
+}
+let frSearchT = 0;
+$("frSearch").addEventListener("input", () => {
+  clearTimeout(frSearchT);
+  frSearchT = setTimeout(async () => {
+    const q = $("frSearch").value.trim();
+    if (q.length < 2) { $("frResults").innerHTML = ""; return; }
+    const { data, error } = await sb.from("profiles").select("id,name").ilike("name", `%${q.replace(/[%_]/g, "")}%`).limit(20);
+    if (error) { $("frResults").innerHTML = `<div class="sub">${esc(error.message)}</div>`; return; }
+    const people = (data || []).filter((p) => p.id !== me.id && p.name.toLowerCase().includes(q.toLowerCase()));
+    for (const p of people) fr.names.set(p.id, p.name);
+    $("frResults").innerHTML = people.length ? people.map((p) => {
+      const s = frStatus(p.id);
+      const btn = s === "friend" ? '<span class="frwhen">Friends</span>' : s === "sent" ? '<span class="frwhen">Requested</span>'
+        : s === "received" ? `<button class="go" data-fraccept="${p.id}">Accept</button>` : `<button class="go" data-fradd="${p.id}">Add friend</button>`;
+      return `<div class="frrow"><span class="frav">${esc((p.name.trim()[0] || "?").toUpperCase())}</span><span class="meta"><span class="t">${esc(p.name)}</span></span>${btn}</div>`;
+    }).join("") : '<div class="sub">Nobody by that name yet. They need to have opened Budsbox at least once.</div>';
+  }, 250);
+});
+async function frAct(fn, okMsg) {
+  const r = await fn();
+  if (r && r.error) { $("frMsg").textContent = r.error.message; return; }
+  if (okMsg) toast(okMsg);
+  await loadFriends(); $("frSearch").dispatchEvent(new Event("input"));
+}
+$("friendsModal").addEventListener("click", (e) => {
+  const b = e.target.closest("button, [data-frplay]"); if (!b) return;
+  const d = b.dataset;
+  if (d.fradd) {
+    if (frStatus(d.fradd) === "received") return frAct(() => sb.from("friendships").update({ status: "accepted" }).eq("requester", d.fradd).eq("addressee", me.id), "You're now friends with " + frName(d.fradd));
+    return frAct(() => sb.from("friendships").insert({ requester: me.id, addressee: d.fradd, status: "pending" }), "Friend request sent");
+  }
+  if (d.fraccept) return frAct(() => sb.from("friendships").update({ status: "accepted" }).eq("requester", d.fraccept).eq("addressee", me.id), "You're now friends with " + frName(d.fraccept));
+  if (d.frdecline) return frAct(() => sb.from("friendships").delete().eq("requester", d.frdecline).eq("addressee", me.id), "Request declined");
+  if (d.frcancel) return frAct(() => sb.from("friendships").delete().eq("requester", me.id).eq("addressee", d.frcancel), "Request cancelled");
+  if (d.frremove) {
+    if (!confirm(`Remove ${frName(d.frremove)} from your friends?`)) return;
+    return frAct(async () => {
+      await sb.from("friendships").delete().eq("requester", me.id).eq("addressee", d.frremove);
+      return sb.from("friendships").delete().eq("requester", d.frremove).eq("addressee", me.id);
+    }, "Friend removed");
+  }
+  if (d.frplay) { const t = all.find((x) => String(x.id) === d.frplay); if (t) { ctxName = frName(friendIds().find((u) => String(fr.act.get(u)?.track_id) === d.frplay)) + "'s activity"; playTrack(t, [t]); } }
+});
+$("frShare").onchange = async () => {
+  frShare = $("frShare").checked;
+  try { localStorage.setItem("jukebox_share", frShare ? "on" : "off"); } catch (e) {}
+  if (frShare) { toast("Friends can see what you're listening to"); publishActivity(true); }
+  else { toast("Your listening is private"); await sb.from("activity").delete().eq("user_id", me.id); }
+};
+async function openFriends() {
+  toggleMenu(false); $("frMsg").textContent = ""; $("frSearch").value = ""; $("frResults").innerHTML = "";
+  openOv("friendsModal"); paintFriends();
+  await syncProfile(); await loadFriends();
+}
+$("friendsBtn").onclick = openFriends; $("mFriendsBtn").onclick = openFriends;
+$("frClose").onclick = () => closeOv("friendsModal");
+// tell friends what's playing (on play/pause/song change, and every couple of minutes while playing)
+let actT = 0, actLast = "";
+function publishActivity(force) {
+  if (!me || !frShare || fr.noTable) return;
+  clearTimeout(actT);
+  actT = setTimeout(async () => {
+    const row = { user_id: me.id, track_id: nowId != null ? String(nowId) : null, playing: nowId != null && !audio.paused, updated_at: new Date().toISOString() };
+    const sig = row.track_id + "|" + row.playing;
+    if (!force && sig === actLast && Date.now() - (publishActivity.at || 0) < 110000) return;
+    actLast = sig; publishActivity.at = Date.now();
+    const r = await sb.from("activity").upsert(row);
+    if (r.error && FR_TABLES.test(r.error.message || "")) fr.noTable = true;
+  }, 1200);
+}
+setInterval(() => { if (me && !audio.paused) publishActivity(true); }, 120000);
+let frTick = 0; // every 20s while Friends is open, every minute otherwise
+setInterval(() => { frTick++; if (me && !document.hidden && (isOpen("friendsModal") || frTick % 3 === 0)) loadFriends(); }, 20000);
+// Home: friends playing something right now (or in the last half hour)
+function friendsListening() {
+  const recent = friendIds().map((u) => [u, fr.act.get(u)]).filter(([, a]) => a && a.track_id && Date.now() - Date.parse(a.updated_at) < 30 * 60000)
+    .sort((x, y) => String(y[1].updated_at).localeCompare(String(x[1].updated_at))).slice(0, 6);
+  const tiles = recent.map(([u, a]) => {
+    const t = all.find((x) => String(x.id) === String(a.track_id)); if (!t) return "";
+    return `<button class="rtile frtile" data-recent="t:${esc(t.id)}" title="${esc(frName(u))}: ${esc(t.title)}"><span class="rart"><span class="frav${isLive(a) ? " live" : ""}">${esc(frInitial(u))}</span></span><span class="rname">${esc(frName(u))}<br><span class="sub">${esc(t.title)}</span></span></button>`;
+  }).join("");
+  return tiles ? `<h2 class="sech">Friends listening</h2><div class="recent">${tiles}</div>` : "";
+}
+
 /* ---------- password: forgot + change ---------- */
 $("forgot").onclick = async () => {
   const email = $("email").value.trim();
@@ -953,7 +1148,7 @@ $("nameSave").onclick = async () => {
   await sb.from("tracks").update({ uploader: n }).eq("user_id", me.id);
   await sb.from("playlists").update({ owner: n }).eq("user_id", me.id);
   $("nameForm").classList.add("hide");
-  paintWho(); toast("Name saved."); sfxDing();
+  paintWho(); toast("Name saved."); sfxDing(); syncProfile();
   loadAll();
 };
 
@@ -1136,7 +1331,7 @@ function drawLists() {
     if (pls.length) { html += '<h2 class="sech">Playlists</h2>'; pls.forEach((p) => { html += plRow(p); }); }
   } else if (view === "lib") {
     shown = sorted(all);
-    html = recentTiles() + newFromFollowed() + heroHTML({
+    html = recentTiles() + friendsListening() + newFromFollowed() + heroHTML({
       kind: "Everyone's music", title: "Library", art: '<span class="cover pix"><img src="icon-512.png" alt=""></span>', canPlay: all.length > 0,
       meta: `<b>${esc(myName())}</b> · ${all.length} song${all.length === 1 ? "" : "s"} · ${plays(all)} listens${len(all)}`,
       extras: `<label class="btn uplbtn" for="file">+ Upload</label><span class="grow"></span>${sortSel()}`,
@@ -1985,12 +2180,14 @@ try {
 } catch (e) {}
 
 audio.onplay = () => {
+  publishActivity();
   resumeHint = null;
   paintPlayBtn();
   if ("mediaSession" in navigator) navigator.mediaSession.playbackState = "playing";
   markNow(); syncPos(); jamPush();
 };
 audio.onpause = () => {
+  publishActivity();
   // a pause nobody asked for (AirPod out, Bluetooth drop, call): remember to pick it back up
   if (!userPause && nowId != null && !audio.ended) resumeHint = Date.now();
   userPause = false;

@@ -617,3 +617,24 @@ html.bg-photo .lhead{background:#000c;-webkit-backdrop-filter:blur(8px);backdrop
     #player{background:color-mix(in srgb,var(--grass) 45%,#0c0c0c)}
   }
 }
+
+/* ---------- friends ---------- */
+.frbtn{position:relative}
+.frbadge{position:absolute;top:0;right:0;min-width:15px;height:15px;padding:0 3px;border-radius:999px;background:var(--red);color:#fff;font:600 9px/15px -apple-system,system-ui,sans-serif;text-align:center;text-shadow:none}
+.frpanel{max-width:500px!important}
+#frBody h3:first-child{margin-top:0}
+.frrow{display:flex;align-items:center;gap:10px;padding:8px 2px}
+.frrow + .frrow{border-top:2px solid #ffffff12}
+.frav{flex:none;width:38px;height:38px;border-radius:50%;background:var(--grass);display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;text-shadow:2px 2px 0 #0007;position:relative}
+.frav.live::after{content:"";position:absolute;right:-1px;bottom:-1px;width:11px;height:11px;border-radius:50%;background:#3ee06b;border:2px solid #000}
+.frrow .meta .t{font-size:10px}
+.frrow .meta .by{font-size:8px}
+.frrow .frsong{cursor:pointer}
+.frrow .frsong:hover .t{text-decoration:underline}
+.frwhen{flex:none;font-size:8px;color:#b9c2b4;white-space:nowrap}
+.frwhen.live{color:#3ee06b}
+.frrow button{padding:6px 10px;font-size:9px;margin:0}
+#frSearch{margin:4px 0 6px}
+#frShare{margin:0}
+.frtile .rart{display:flex;align-items:center;justify-content:center}
+.frtile .frav{width:44px;height:44px;margin-left:4px}
