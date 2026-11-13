@@ -552,3 +552,10 @@ button,.btn,input[type=text],input[type=email],input[type=password],input[type=s
 .wn{width:18px;font-size:12px;color:var(--gold)}
 .wart{width:110px;height:110px;margin:10px auto 0;border-radius:50%;overflow:hidden;border:3px solid #000}
 .wart .cover,.wart .disc,.wart .disc svg{width:100%!important;height:100%!important;border:0}
+
+/* downloads + offline */
+.dlbtn.on{color:var(--gold)}
+.trow.dl .meta .by::before{content:"\2193 ";color:var(--gold)}
+body.offline #lists .trow[data-i]:not(.dl){opacity:.38}
+#storeCloud code{font-size:8px;word-break:break-all;color:#fff}
+#storeModal .row{margin-top:6px}

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="budsbox-build" content="b8">
+<meta name="budsbox-build" content="b9">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -16,7 +16,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<link rel="stylesheet" href="css/app.css?v=b8">
+<link rel="stylesheet" href="css/app.css?v=b9">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs id="defs">
@@ -83,6 +83,7 @@
   <symbol id="ic-heart-f" viewBox="0 0 9 9" fill="currentColor"><rect x="1" y="1" width="3" height="1"/><rect x="5" y="1" width="3" height="1"/><rect x="0" y="2" width="9" height="2"/><rect x="1" y="4" width="7" height="1"/><rect x="2" y="5" width="5" height="1"/><rect x="3" y="6" width="3" height="1"/><rect x="4" y="7" width="1" height="1"/></symbol>
   <symbol id="ic-moon" viewBox="0 0 8 8" fill="currentColor"><rect x="2" y="0" width="4" height="1"/><rect x="1" y="1" width="2" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="0" y="2" width="2" height="3"/><rect x="1" y="5" width="2" height="1"/><rect x="6" y="5" width="1" height="1"/><rect x="2" y="6" width="4" height="1"/></symbol>
   <symbol id="ic-grip" viewBox="0 0 8 8" fill="currentColor"><rect x="1" y="1" width="6" height="1"/><rect x="1" y="3" width="6" height="1"/><rect x="1" y="5" width="6" height="1"/></symbol>
+  <symbol id="ic-dl" viewBox="0 0 8 8" fill="currentColor"><rect x="3" y="0" width="2" height="4"/><rect x="1" y="3" width="1" height="1"/><rect x="6" y="3" width="1" height="1"/><rect x="2" y="4" width="4" height="1"/><rect x="3" y="5" width="2" height="1"/><rect x="0" y="7" width="8" height="1"/><rect x="0" y="6" width="1" height="1"/><rect x="7" y="6" width="1" height="1"/></symbol>
   <symbol id="ic-gear" viewBox="0 0 8 8" fill="#fff">
     <rect x="3" y="0" width="2" height="1"/><rect x="1" y="1" width="6" height="1"/>
     <rect x="1" y="2" width="2" height="1"/><rect x="5" y="2" width="2" height="1"/>
@@ -124,6 +125,7 @@
         <button id="wrapOpen" class="lbopen"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-note"/></svg>Your Wrapped</button>
         <button id="lbOpen" class="lbopen"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-trophy"/></svg>Leaderboard</button>
         <h3>Account</h3>
+        <button id="storeOpen">Storage &amp; downloads</button>
         <button id="pwChange">Change password</button>
         <button id="logout">Log out</button>
       </div>
@@ -281,6 +283,21 @@
     <div class="row seg" id="wrapTabs" role="tablist"><button data-wp="month" role="tab">This month</button><button data-wp="year" role="tab">This year</button><button data-wp="all" role="tab">All time</button></div>
     <div id="wrapBody"></div>
     <div class="row"><button class="go" id="wrapClose">Done</button></div>
+  </div>
+</div>
+
+<!-- Storage & downloads -->
+<div id="storeModal" class="overlay hide">
+  <div class="panel">
+    <div>Storage &amp; downloads</div>
+    <h3>Your uploads (Supabase)</h3>
+    <div id="storeCloud" class="sub">Checking...</div>
+    <div class="row"><button class="del hide" id="storeClean">Delete unused files</button></div>
+    <h3>Downloaded on this device</h3>
+    <div id="storeLocal" class="sub">Checking...</div>
+    <div class="row"><button class="hide" id="storeClearDl">Remove all downloads</button></div>
+    <div class="msg" id="storeMsg"></div>
+    <div class="row"><button class="go" id="storeClose">Done</button></div>
   </div>
 </div>
 
@@ -476,7 +493,7 @@
 <div id="toast" class="hide" role="status" aria-live="polite"></div>
 <audio id="audio" preload="auto" playsinline></audio>
 
-<script src="js/app.js?v=b8"></script>
-<script>/* older copies look for this line to spot updates: const APP_BUILD = "b8"; */</script>
+<script src="js/app.js?v=b9"></script>
+<script>/* older copies look for this line to spot updates: const APP_BUILD = "b9"; */</script>
 </body>
 </html>

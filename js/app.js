@@ -41,6 +41,11 @@ ARTIST NAMES NEED THIS. Run once:
 
 alter table public.tracks add column if not exists artist text;
 
+STORAGE CHECK (Settings > Storage & downloads) NEEDS THIS to list your own files. Run once:
+
+create policy "music list own files" on storage.objects for select to authenticated
+  using (bucket_id = 'music' and (storage.foldername(name))[1] = auth.uid()::text);
+
 FOLLOWING ARTISTS NEEDS THIS. Run once:
 
 create table if not exists public.follows (
@@ -412,16 +417,16 @@ async function loadLikes() {
   if (error) {
     likesLocal = /likes|schema cache|does not exist/i.test(error.message || "");
     try { liked = new Map(JSON.parse(localStorage.getItem(LIKE_KEY()) || "[]")); } catch (e) { liked = new Map(); }
-  } else { likesLocal = false; liked = new Map((data || []).map((r) => [String(r.track_id), r.created_at])); }
+  } else { likesLocal = false; liked = new Map((data || []).map((r) => [String(r.track_id), r.created_at])); saveLocalLikes(); } // copy kept for offline
 }
 const saveLocalLikes = () => { try { localStorage.setItem(LIKE_KEY(), JSON.stringify([...liked])); } catch (e) {} };
 async function toggleLike(t) {
   if (!t) return;
   const id = String(t.id), was = liked.has(id);
   if (was) liked.delete(id); else liked.set(id, new Date().toISOString());
-  paintLikes(); sfxClick();
+  paintLikes(); sfxClick(); saveLocalLikes();
   toast(was ? "Removed from Liked Songs" : "Added to Liked Songs");
-  if (likesLocal) { saveLocalLikes(); return; }
+  if (likesLocal) return;
   const r = was ? await sb.from("likes").delete().eq("user_id", me.id).eq("track_id", id)
                 : await sb.from("likes").insert({ user_id: me.id, track_id: id });
   if (r.error) {
@@ -625,6 +630,164 @@ $("wrapOpen").onclick = openWrap;
 $("wrapClose").onclick = () => closeOv("wrapModal");
 $("wrapTabs").onclick = (e) => { const b = e.target.closest("[data-wp]"); if (b) { wrapPeriod = b.dataset.wp; renderWrap(); } };
 
+/* ---------- offline: downloads + saved library ----------
+   Downloading a playlist (or Liked Songs) saves its songs and covers in this device's cache;
+   sw.js plays them from there. The library itself is also saved so the app opens offline. */
+const AUDIO_CACHE = "budsbox-audio";
+const OFFLINE_KEY = () => "jukebox_offline_" + (me?.id || "");
+const DATA_KEY = () => "jukebox_data_" + (me?.id || "");
+let offlineIds = new Set(), dlBusy = false;
+function saveOfflineData(tracks, playlists, artists) {
+  try {
+    const prev = readOfflineData() || {};
+    localStorage.setItem(DATA_KEY(), JSON.stringify({ tracks, playlists: playlists || prev.playlists || [], artists: artists || prev.artists || [], at: Date.now() }));
+  } catch (e) {}
+}
+function readOfflineData() { try { return JSON.parse(localStorage.getItem(DATA_KEY()) || "null"); } catch (e) { return null; } }
+const getDownloads = () => { try { return JSON.parse(localStorage.getItem(OFFLINE_KEY()) || "[]"); } catch (e) { return []; } };
+const setDownloads = (a) => { try { localStorage.setItem(OFFLINE_KEY(), JSON.stringify(a)); } catch (e) {} };
+const isDownloadedSet = (k) => getDownloads().includes(k);
+const isDownloaded = (t) => !!t && offlineIds.has(String(t.id));
+const canDownload = () => "caches" in window && "serviceWorker" in navigator;
+function tracksFor(k) {
+  if (k === "liked") return likedTracks();
+  const p = lists.find((x) => x.id === k.slice(3));
+  return p ? p.track_ids.map((id) => all.find((t) => t.id === id)).filter(Boolean) : [];
+}
+const filesFor = (t) => [urlFor(t), ...(t.cover_path ? [coverUrl(t)] : [])];
+function dlButton(k) {
+  if (!canDownload()) return "";
+  const on = isDownloadedSet(k);
+  return `<button class="rbtn hbtn dlbtn${on ? " on" : ""}" data-dl="${esc(k)}" aria-pressed="${on}" aria-label="${on ? "Remove download" : "Download"}" title="${on ? "Downloaded — tap to remove from this device" : "Download to play offline"}">${ICON("ic-dl")}</button>`;
+}
+async function refreshOfflineIds() {
+  if (!("caches" in window)) return;
+  try {
+    const keys = new Set((await (await caches.open(AUDIO_CACHE)).keys()).map((r) => r.url));
+    offlineIds = new Set(all.filter((t) => keys.has(urlFor(t))).map((t) => String(t.id)));
+  } catch (e) {}
+}
+async function downloadTracks(tracks, label) {
+  const cache = await caches.open(AUDIO_CACHE);
+  const have = new Set((await cache.keys()).map((r) => r.url));
+  const todo = tracks.filter((t) => !have.has(urlFor(t)));
+  let n = 0, failed = 0;
+  for (const t of todo) {
+    n++; if (label) toast(`Downloading ${n} of ${todo.length}: ${t.title}`);
+    for (const u of filesFor(t)) {
+      if (have.has(u)) continue;
+      try { const r = await fetch(u, { mode: "cors" }); if (!r.ok) throw new Error(r.status); await cache.put(u, r); have.add(u); }
+      catch (e) { failed++; }
+    }
+    offlineIds.add(String(t.id));
+  }
+  return { count: todo.length, failed };
+}
+async function toggleDownload(k) {
+  if (!canDownload()) { toast("This browser can't save music for offline"); return; }
+  if (dlBusy) { toast("A download is already running"); return; }
+  const list = getDownloads();
+  if (list.includes(k)) {
+    setDownloads(list.filter((x) => x !== k));
+    await pruneDownloads(); drawLists(); toast("Removed from this device");
+    return;
+  }
+  setDownloads([...list, k]); drawLists();
+  dlBusy = true;
+  const r = await downloadTracks(tracksFor(k), true);
+  dlBusy = false;
+  drawLists();
+  toast(r.failed ? `Downloaded, but ${r.failed} file${r.failed === 1 ? "" : "s"} failed — try again later` : r.count ? "Downloaded — ready to play offline" : "Already downloaded");
+}
+// keep downloads in step: new songs in a downloaded playlist get saved, removed ones get cleaned up
+async function syncDownloads() {
+  if (!canDownload() || dlBusy || !navigator.onLine) { await refreshOfflineIds(); return; }
+  const keys = getDownloads(); if (!keys.length) { await refreshOfflineIds(); return; }
+  dlBusy = true;
+  const want = [...new Map(keys.flatMap(tracksFor).map((t) => [t.id, t])).values()];
+  await downloadTracks(want, false);
+  dlBusy = false;
+  await pruneDownloads();
+  if (document.querySelector("#lists .trow")) drawLists();
+}
+async function pruneDownloads() {
+  if (!("caches" in window)) return;
+  const keep = new Set(getDownloads().flatMap(tracksFor).flatMap(filesFor));
+  const cache = await caches.open(AUDIO_CACHE);
+  for (const r of await cache.keys()) if (!keep.has(r.url)) await cache.delete(r);
+  await refreshOfflineIds();
+}
+async function downloadsSize() {
+  if (!("caches" in window)) return { files: 0, bytes: 0 };
+  const cache = await caches.open(AUDIO_CACHE); let bytes = 0, files = 0;
+  for (const r of await cache.keys()) { const res = await cache.match(r); if (res) { bytes += (await res.clone().blob()).size; files++; } }
+  return { files, bytes };
+}
+function paintOnline() { document.body.classList.toggle("offline", !navigator.onLine); }
+addEventListener("online", () => { paintOnline(); if (me) loadAll(); });
+addEventListener("offline", paintOnline);
+paintOnline();
+if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});
+
+/* ---------- storage check + cleanup ----------
+   Lists the files in your own folder, adds up their size, and finds ones nothing uses any more
+   (left behind when a cover was replaced or an upload was interrupted). Only your folder is touched. */
+let storeUnused = [];
+const STORAGE_POLICY_SQL = "create policy \"music list own files\" on storage.objects for select to authenticated using (bucket_id = 'music' and (storage.foldername(name))[1] = auth.uid()::text);";
+async function listMyFiles() {
+  const out = []; let offset = 0;
+  for (;;) {
+    const { data, error } = await sb.storage.from("music").list(me.id, { limit: 1000, offset, sortBy: { column: "name", order: "asc" } });
+    if (error) throw error;
+    out.push(...(data || []).filter((f) => f && f.name && f.id !== null));
+    if (!data || data.length < 1000) break;
+    offset += 1000;
+  }
+  return out;
+}
+async function openStorage() {
+  toggleMenu(false); openOv("storeModal");
+  $("storeMsg").textContent = ""; $("storeClean").classList.add("hide"); $("storeClearDl").classList.add("hide");
+  $("storeCloud").textContent = "Checking..."; $("storeLocal").textContent = "Checking...";
+  const local = await downloadsSize();
+  $("storeLocal").textContent = local.files ? `${mb(local.bytes)} in ${local.files} file${local.files === 1 ? "" : "s"} (${offlineIds.size} song${offlineIds.size === 1 ? "" : "s"})` : "Nothing downloaded yet. Use ↓ on a playlist or Liked Songs.";
+  $("storeClearDl").classList.toggle("hide", !local.files);
+  let files;
+  try { files = await listMyFiles(); }
+  catch (e) {
+    $("storeCloud").innerHTML = "Couldn't list your files. To allow it, run this once in Supabase &gt; SQL Editor:<br><br><code>" + esc(STORAGE_POLICY_SQL) + "</code>";
+    return;
+  }
+  const used = new Set();
+  for (const t of all) { used.add(t.path); if (t.cover_path) used.add(t.cover_path); }
+  for (const p of lists) if (p.cover_path) used.add(p.cover_path);
+  for (const r of artistInfo.values()) if (r.picture_path) used.add(r.picture_path);
+  const recent = Date.now() - 15 * 60000; // skip files from uploads that may still be finishing
+  const size = (f) => +(f.metadata && f.metadata.size) || 0;
+  const total = files.reduce((n, f) => n + size(f), 0);
+  storeUnused = files.filter((f) => !used.has(`${me.id}/${f.name}`) && Date.parse(f.created_at || 0) < recent);
+  const waste = storeUnused.reduce((n, f) => n + size(f), 0);
+  $("storeCloud").textContent = `You're using ${mb(total)} in ${files.length} file${files.length === 1 ? "" : "s"}.` +
+    (storeUnused.length ? ` ${storeUnused.length} unused file${storeUnused.length === 1 ? "" : "s"} (${mb(waste)}) can be deleted.` : " Nothing unused — all tidy.");
+  $("storeClean").classList.toggle("hide", !storeUnused.length);
+  $("storeClean").textContent = `Delete ${storeUnused.length} unused file${storeUnused.length === 1 ? "" : "s"}`;
+}
+$("storeOpen").onclick = openStorage;
+$("storeClose").onclick = () => closeOv("storeModal");
+$("storeClean").onclick = async () => {
+  if (!storeUnused.length || !confirm(`Delete ${storeUnused.length} unused file${storeUnused.length === 1 ? "" : "s"}? Nothing in Budsbox uses them.`)) return;
+  const paths = storeUnused.map((f) => `${me.id}/${f.name}`);
+  let failed = 0;
+  for (let i = 0; i < paths.length; i += 100) { const { error } = await sb.storage.from("music").remove(paths.slice(i, i + 100)); if (error) failed++; }
+  $("storeMsg").textContent = failed ? "Some files couldn't be deleted." : "Cleaned up.";
+  sfxDrop(); openStorage();
+};
+$("storeClearDl").onclick = async () => {
+  if (!confirm("Remove all downloaded music from this device? It stays in Budsbox; you just won't have it offline.")) return;
+  setDownloads([]); try { await caches.delete(AUDIO_CACHE); } catch (e) {}
+  offlineIds = new Set(); drawLists(); openStorage(); toast("Downloads removed");
+};
+
 /* ---------- password: forgot + change ---------- */
 $("forgot").onclick = async () => {
   const email = $("email").value.trim();
@@ -688,7 +851,14 @@ async function loadAll() {
   await Promise.all([loadLikes(), loadFollows()]);
   if (ar.error) { artistInfo = new Map(); artistsNoTable = /artists|schema cache|does not exist/i.test(ar.error.message || ""); }
   else { artistInfo = new Map((ar.data || []).map((r) => [r.name, r])); artistsNoTable = false; }
-  if (t.error) { say(t.error.message); return; }
+  if (t.error) {
+    // no connection: fall back to the library saved on this device last time
+    const c = readOfflineData();
+    if (!c) { say(t.error.message); return; }
+    t.data = c.tracks; p.data = c.playlists; p.error = null;
+    if (!artistInfo.size) artistInfo = new Map((c.artists || []).map((r) => [r.name, r]));
+    if (!loadAll.offlineNoted) { loadAll.offlineNoted = true; toast("You're offline \u2014 showing your downloaded music"); }
+  } else saveOfflineData(t.data, p.error ? null : p.data, ar.error ? null : ar.data);
   all = t.data || [];
   // keep queued songs pointing at fresh rows (plays, lyrics, covers)
   const fresh = (x) => all.find((y) => y.id === x.id);
@@ -701,6 +871,7 @@ async function loadAll() {
   else lists = p.data || [];
   drawLists(); setNow();
   setTimeout(backfillDurations, 3000);
+  setTimeout(syncDownloads, 4000);
   if (!loadAll.noted) { loadAll.noted = true; noteNewFromFollowed(); }
   // opened from a Jam invite link: prefill the code (joining needs a tap so the phone allows audio)
   if (pendingJam && !jam.role) {
@@ -761,7 +932,7 @@ const ICON = (id) => `<svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-h
 function trackRow(t, i, extra, canEdit) {
   const edit = canEdit && t.user_id === me.id
     ? `<button class="rbtn" data-edit="${i}" aria-label="Edit song" title="Edit song">${ICON("ic-pen")}</button>` : "";
-  return `<div class="track trow" tabindex="0" data-i="${i}">` +
+  return `<div class="track trow${isDownloaded(t) ? " dl" : ""}" tabindex="0" data-i="${i}">` +
     `<span class="tn"><span class="num">${i + 1}</span><span class="eq">${ICON("ic-play")}</span></span>` +
     thumbHTML(t) +
     `<span class="meta"><span class="t">${esc(t.title)}</span><span class="by">${creditHTML(t)}</span></span>` +
@@ -887,7 +1058,7 @@ function drawLists() {
       kind: "Playlist", title: "Liked Songs", back: true, canPlay: shown.length > 0,
       art: '<span class="likedtile"><svg viewBox="0 0 9 9" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-heart-f"/></svg></span>',
       meta: `<b>${esc(myName())}</b> \u00B7 ${shown.length} song${shown.length === 1 ? "" : "s"}${len(shown)}` + (likesLocal ? " \u00B7 saved on this device" : ""),
-      extras: "",
+      extras: dlButton("liked"),
     });
     if (!shown.length) html += '<div class="empty">Songs you like will show up here. Tap the \u2661 on any song.</div>';
     else html += swipeHint + listHead();
@@ -917,8 +1088,8 @@ function drawLists() {
       kind: mine ? "Playlist" : "Shared playlist", title: p.name, back: true, canPlay: shown.length > 0,
       art: plArtHTML(p) + (mine ? `<button class="hedit" data-pledit="${esc(p.id)}" aria-label="Change playlist cover" title="Change cover">${ICON("ic-pen")}<span>Choose photo</span></button>` : ""),
       meta: `<b>${esc(p.owner)}</b> · ${shown.length} song${shown.length === 1 ? "" : "s"} · ${plays(shown)} listens${len(shown)}`,
-      extras: mine ? `<button class="rbtn hbtn" data-pledit="${esc(p.id)}" aria-label="Edit playlist" title="Edit playlist (cover, name)">${ICON("ic-pen")}</button>` +
-        (shown.length > 1 ? `<button class="btn reorderbtn${reorderId === p.id ? " go" : ""}" data-reorder="1">${reorderId === p.id ? "Done" : "Reorder"}</button>` : "") + `<span class="grow"></span><button class="rbtn rdel hbtn" data-dpl="${esc(p.id)}" aria-label="Delete playlist" title="Delete playlist">${ICON("ic-x")}</button>` : "",
+      extras: dlButton("pl:" + p.id) + (mine ? `<button class="rbtn hbtn" data-pledit="${esc(p.id)}" aria-label="Edit playlist" title="Edit playlist (cover, name)">${ICON("ic-pen")}</button>` +
+        (shown.length > 1 ? `<button class="btn reorderbtn${reorderId === p.id ? " go" : ""}" data-reorder="1">${reorderId === p.id ? "Done" : "Reorder"}</button>` : "") + `<span class="grow"></span><button class="rbtn rdel hbtn" data-dpl="${esc(p.id)}" aria-label="Delete playlist" title="Delete playlist">${ICON("ic-x")}</button>` : ""),
     });
     if (!shown.length) html += `<div class="empty">${mine ? "Empty. Use + on any song in the Library to add it here." : "Nothing in here yet."}</div>`;
     else html += swipeHint + listHead();
@@ -1056,6 +1227,7 @@ $("lists").onclick = (e) => {
   if (b) {
     if (b.dataset.like !== undefined) return toggleLike(shown[+b.dataset.like]);
     if (b.dataset.recent) return openRecent(b.dataset.recent);
+    if (b.dataset.dl) return toggleDownload(b.dataset.dl);
     if (b.dataset.follow) return toggleFollow(view.slice(3));
     if (b.dataset.add !== undefined) return openPicker(shown[+b.dataset.add]);
     if (b.dataset.edit !== undefined) return openEdit(shown[+b.dataset.edit]);
