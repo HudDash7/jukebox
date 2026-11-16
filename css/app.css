@@ -670,8 +670,10 @@ html.bg-photo .lhead{background:#000c;-webkit-backdrop-filter:blur(8px);backdrop
 /* ---------- logo: record mark + rounded wordmark ---------- */
 .brand{display:inline-flex;align-items:center;gap:10px}
 .logomark{width:34px;height:34px;flex:none;display:block;filter:drop-shadow(0 2px 4px #0006)}
-.wordmark{font-family:"Nunito",ui-rounded,"SF Pro Rounded",system-ui,sans-serif;font-weight:900;font-size:27px;letter-spacing:-.6px;line-height:1;color:#fff;text-shadow:none;-webkit-font-smoothing:antialiased}
-.ptitle.isbrand{display:inline-flex!important;align-items:center;gap:9px}
-.ptitle.isbrand .logomark{width:30px;height:30px}
-.ptitle.isbrand .wordmark{font-size:25px}
+.wordmark{font-family:"Nunito",ui-rounded,"SF Pro Rounded",system-ui,sans-serif;font-weight:900;font-size:25px;letter-spacing:1px;text-transform:uppercase;line-height:1;color:#fff;text-shadow:none;-webkit-font-smoothing:antialiased}
+@media (max-width:1023px){
+  .ptitle.isbrand{display:inline-flex!important;align-items:center;gap:9px}
+  .ptitle.isbrand .logomark{width:30px;height:30px}
+  .ptitle.isbrand .wordmark{font-size:22px}
+}
 @media (max-width:1023px){.brand{display:none!important}}

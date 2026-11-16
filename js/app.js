@@ -1690,7 +1690,7 @@ let mtab = "home", mSearch = false, libFilter = "all";
 let libSort = (() => { try { return localStorage.getItem("jukebox_libsort") || "recent"; } catch (e) { return "recent"; } })();
 function paintTabs() {
   document.querySelectorAll("#tabbar [data-tab]").forEach((b) => { const on = b.dataset.tab === mtab; b.classList.toggle("on", on); if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
-  if (mtab === "home") $("pTitle").innerHTML = '<svg class="logomark" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="#161816"/><circle cx="32" cy="32" r="24" fill="none" stroke="#ffffff22" stroke-width="1.6"/><circle cx="32" cy="32" r="18.5" fill="none" stroke="#ffffff1a" stroke-width="1.6"/><circle cx="32" cy="32" r="11" fill="var(--gold)"/><circle cx="32" cy="32" r="2.6" fill="#161816"/></svg><span class="wordmark">budsbox</span>';
+  if (mtab === "home") $("pTitle").innerHTML = '<svg class="logomark" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="#161816"/><circle cx="32" cy="32" r="24" fill="none" stroke="#ffffff22" stroke-width="1.6"/><circle cx="32" cy="32" r="18.5" fill="none" stroke="#ffffff1a" stroke-width="1.6"/><circle cx="32" cy="32" r="11" fill="var(--gold)"/><circle cx="32" cy="32" r="2.6" fill="#161816"/></svg><span class="wordmark">BUDSBOX</span>';
   else $("pTitle").textContent = mtab === "search" ? "Search" : "Your Library";
   $("pTitle").classList.toggle("isbrand", mtab === "home");
   document.body.classList.toggle("m-search", mSearch);
