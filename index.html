@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="budsbox-build" content="b13">
+<meta name="budsbox-build" content="b14">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -16,7 +16,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<link rel="stylesheet" href="css/app.css?v=b13">
+<link rel="stylesheet" href="css/app.css?v=b14">
 </head>
 <body>
 <div id="bgLayer" aria-hidden="true"></div>
@@ -306,6 +306,36 @@
   </div>
 </div>
 
+<!-- Release an album / EP / single -->
+<div id="relModal" class="overlay hide">
+  <div class="panel relpanel">
+    <div id="relHead">New release</div>
+    <div class="row seg" id="relType" role="radiogroup" aria-label="Release type"><button data-rt="album" role="radio">Album</button><button data-rt="ep" role="radio">EP</button><button data-rt="single" role="radio">Single</button></div>
+    <div class="row pleRow">
+      <label id="relPrev" class="plecov" for="relImg" title="Choose cover"></label>
+      <div class="grow" style="min-width:0">
+        <input id="relTitle" type="text" maxlength="100" placeholder="Title" aria-label="Release title">
+        <input id="relArtist" type="text" maxlength="100" placeholder="Artist name" list="relArtists" aria-label="Artist name">
+        <datalist id="relArtists"></datalist>
+        <label class="btn" for="relImg">Choose cover</label>
+        <input id="relImg" type="file" accept="image/*">
+      </div>
+    </div>
+    <h3>Songs <span class="sub" id="relCount"></span></h3>
+    <div id="relTracks"></div>
+    <div class="row">
+      <label class="btn" for="relUpload">+ Upload songs</label>
+      <input id="relUpload" type="file" accept="audio/*" multiple>
+      <button id="relPickBtn">Add from my uploads</button>
+    </div>
+    <div id="relPicker" class="hide"></div>
+    <h3>About <span class="sub">(optional)</span></h3>
+    <textarea id="relDesc" rows="3" maxlength="600" placeholder="A few words about this release"></textarea>
+    <div class="msg" id="relMsg"></div>
+    <div class="row"><button class="go" id="relSave">Release</button><button id="relCancel">Cancel</button><span class="grow"></span><button class="del hide" id="relDelete">Delete release</button></div>
+  </div>
+</div>
+
 <!-- Friends -->
 <div id="friendsModal" class="overlay hide">
   <div class="panel frpanel">
@@ -546,6 +576,7 @@
     <button class="sheetopt" id="csPlaylist"><span class="soic"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-note"/></svg></span><span class="sotx"><b>Playlist</b><span class="sub">Build a playlist with songs</span></span></button>
     <div id="csNew" class="hide"><div class="row" style="flex-wrap:nowrap"><input id="csName" class="grow" type="text" maxlength="60" placeholder="Playlist name" aria-label="Playlist name" style="margin:0"><button class="go" id="csMake">Create</button></div></div>
     <label class="sheetopt btn" for="file" id="csUpload"><span class="soic"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-plus"/></svg></span><span class="sotx"><b>Upload music</b><span class="sub">Add songs from this device</span></span></label>
+    <button class="sheetopt" id="csRelease"><span class="soic"><svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true"><use href="#disc0"/></svg></span><span class="sotx"><b>Album or EP</b><span class="sub">Release your music as an album, EP or single</span></span></button>
     <button class="sheetopt" id="csJam"><span class="soic"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-jam"/></svg></span><span class="sotx"><b>Jam</b><span class="sub">Listen together with friends</span></span></button>
   </div>
 </div>
@@ -554,7 +585,7 @@
 <div id="toast" class="hide" role="status" aria-live="polite"></div>
 <audio id="audio" preload="auto" playsinline></audio>
 
-<script src="js/app.js?v=b13"></script>
-<script>/* older copies look for this line to spot updates: const APP_BUILD = "b13"; */</script>
+<script src="js/app.js?v=b14"></script>
+<script>/* older copies look for this line to spot updates: const APP_BUILD = "b14"; */</script>
 </body>
 </html>

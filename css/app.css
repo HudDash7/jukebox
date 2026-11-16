@@ -638,3 +638,31 @@ html.bg-photo .lhead{background:#000c;-webkit-backdrop-filter:blur(8px);backdrop
 #frShare{margin:0}
 .frtile .rart{display:flex;align-items:center;justify-content:center}
 .frtile .frav{width:44px;height:44px;margin-left:4px}
+
+/* ---------- releases ---------- */
+.relgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-bottom:8px}
+.relcard{display:flex;flex-direction:column;gap:6px;align-items:stretch;text-align:left;background:transparent;border:0;outline:0;margin:0;padding:8px;border-radius:10px;text-shadow:none}
+.relcard:hover{background:#ffffff10}
+.relcard:active{transform:none}
+.relcard:focus-visible{outline:3px solid var(--gold)}
+.relart{display:block;width:100%;aspect-ratio:1;border-radius:6px;overflow:hidden;box-shadow:0 6px 16px #0008;background:#111}
+.relart .cover,.relart .disc,.relart .disc svg{width:100%!important;height:100%!important;border:0;border-radius:0}
+.reltitle{font-size:10px;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.relcard .sub{font-size:8px}
+.reldate{margin:12px 4px 18px}
+.relpanel{max-width:540px!important}
+#relType{margin:6px 0 8px}
+#relTracks{max-height:34vh;overflow:auto}
+.relt{display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:2px solid #ffffff12}
+.relt .wn{width:20px;font-size:10px;color:var(--gold)}
+.relt .meta{flex:1;min-width:0}
+.relt .meta .t{font-size:10px}
+.relt .rbtn{padding:4px 6px;font-size:10px;line-height:1}
+.relt .rbtn:disabled{opacity:.25}
+#relPicker{max-height:30vh;overflow:auto;background:#0006;border:3px solid #000;border-radius:8px;padding:6px;margin:6px 0}
+.relpick{display:flex;align-items:center;gap:10px;padding:6px 2px}
+.relpick input{width:18px;height:18px;accent-color:var(--grass)}
+.relpick .meta .t{font-size:10px}
+#relPickAdd{margin-top:6px}
+.hsub .alink{cursor:pointer}
+@media (max-width:1023px){.relgrid{grid-template-columns:1fr 1fr;gap:10px}}

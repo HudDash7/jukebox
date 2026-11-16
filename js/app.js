@@ -41,6 +41,26 @@ ARTIST NAMES NEED THIS. Run once:
 
 alter table public.tracks add column if not exists artist text;
 
+RELEASES (albums, EPs, singles) NEED THIS. Run once:
+
+create table if not exists public.releases (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  artist text not null,
+  title text not null,
+  type text not null default 'album' check (type in ('album', 'ep', 'single')),
+  cover_path text,
+  description text,
+  track_ids jsonb not null default '[]'::jsonb,
+  release_date timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+alter table public.releases enable row level security;
+create policy "releases read" on public.releases for select to authenticated using (true);
+create policy "releases add own" on public.releases for insert to authenticated with check (auth.uid() = user_id);
+create policy "releases edit own" on public.releases for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "releases delete own" on public.releases for delete to authenticated using (auth.uid() = user_id);
+
 FRIENDS (requests + friend activity) NEED THIS. Run once:
 
 create table if not exists public.profiles (
@@ -268,8 +288,10 @@ $("defs").insertAdjacentHTML("beforeend", DISC_COLORS.map((c, i) => `<symbol id=
 const hash = (s) => { s = String(s); let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; };
 const discHTML = (t) => `<span class="disc"><svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true"><use href="#disc${hash(t.id) % DISC_COLORS.length}"/></svg></span>`;
 const coverUrl = (t) => sb.storage.from("music").getPublicUrl(t.cover_path).data.publicUrl;
-const thumbHTML = (t) => t.cover_path
-  ? `<span class="cover"><img src="${coverUrl(t)}" alt="" loading="lazy" decoding="async"></span>`
+// a song's picture: its own cover, else the cover of the album/EP it's on
+const artUrl = (t) => !t ? "" : t.cover_path ? coverUrl(t) : relCoverUrlFor(t);
+const thumbHTML = (t) => artUrl(t)
+  ? `<span class="cover"><img src="${artUrl(t)}" alt="" loading="lazy" decoding="async"></span>`
   : discHTML(t);
 const curTrack = () => nowId == null ? null : (all.find((x) => x.id === nowId) || queue.find((x) => x.id === nowId) || userQueue.find((x) => x.id === nowId) || null);
 const artistOf = (t) => (t.artist && String(t.artist).trim()) || "Unknown artist";
@@ -557,6 +579,7 @@ function recentTiles() {
     if (k === "liked") { art = '<span class="likedtile"><svg viewBox="0 0 9 9" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-heart-f"/></svg></span>'; name = "Liked Songs"; }
     else if (k.startsWith("pl:")) { const p = lists.find((x) => x.id === k.slice(3)); if (!p) continue; art = plArtHTML(p); name = p.name; }
     else if (k.startsWith("ar:")) { const n = k.slice(3); if (!songsBy(n).length) continue; art = artistArt(n); name = n; round = true; }
+    else if (k.startsWith("rel:")) { const r = releases.find((x) => String(x.id) === k.slice(4)); if (!r) continue; art = relArt(r); name = r.title; }
     else if (k.startsWith("t:")) { const t = all.find((x) => String(x.id) === k.slice(2)); if (!t) continue; art = thumbHTML(t); name = t.title; }
     tiles.push(`<button class="rtile" data-recent="${esc(k)}" title="${esc(name)}"><span class="rart${round ? " round" : ""}">${art}</span><span class="rname">${esc(name)}</span></button>`);
     if (tiles.length >= 8) break;
@@ -567,6 +590,7 @@ function openRecent(k) {
   if (k === "liked") return go("liked");
   if (k.startsWith("pl:")) return go(k);
   if (k.startsWith("ar:")) return goArtist(k.slice(3));
+  if (k.startsWith("rel:")) return go(k);
   const t = all.find((x) => String(x.id) === k.slice(2));
   if (t) { ctxName = "Library"; rememberRecent(k); playTrack(t, sorted(all)); drawLists(); }
 }
@@ -689,10 +713,10 @@ const AUDIO_CACHE = "budsbox-audio";
 const OFFLINE_KEY = () => "jukebox_offline_" + (me?.id || "");
 const DATA_KEY = () => "jukebox_data_" + (me?.id || "");
 let offlineIds = new Set(), dlBusy = false;
-function saveOfflineData(tracks, playlists, artists) {
+function saveOfflineData(tracks, playlists, artists, rels) {
   try {
     const prev = readOfflineData() || {};
-    localStorage.setItem(DATA_KEY(), JSON.stringify({ tracks, playlists: playlists || prev.playlists || [], artists: artists || prev.artists || [], at: Date.now() }));
+    localStorage.setItem(DATA_KEY(), JSON.stringify({ tracks, playlists: playlists || prev.playlists || [], artists: artists || prev.artists || [], releases: rels || prev.releases || [], at: Date.now() }));
   } catch (e) {}
 }
 function readOfflineData() { try { return JSON.parse(localStorage.getItem(DATA_KEY()) || "null"); } catch (e) { return null; } }
@@ -703,6 +727,7 @@ const isDownloaded = (t) => !!t && offlineIds.has(String(t.id));
 const canDownload = () => "caches" in window && "serviceWorker" in navigator;
 function tracksFor(k) {
   if (k === "liked") return likedTracks();
+  if (k.startsWith("rel:")) { const r = releases.find((x) => String(x.id) === k.slice(4)); return r ? relTracks(r) : []; }
   const p = lists.find((x) => x.id === k.slice(3));
   return p ? p.track_ids.map((id) => all.find((t) => t.id === id)).filter(Boolean) : [];
 }
@@ -813,6 +838,7 @@ async function openStorage() {
   const used = new Set();
   for (const t of all) { used.add(t.path); if (t.cover_path) used.add(t.cover_path); }
   for (const p of lists) if (p.cover_path) used.add(p.cover_path);
+  for (const r of releases) if (r.cover_path) used.add(r.cover_path);
   for (const r of artistInfo.values()) if (r.picture_path) used.add(r.picture_path);
   if (appearance.photo) used.add(appearance.photo);
   const recent = Date.now() - 15 * 60000; // skip files from uploads that may still be finishing
@@ -1099,6 +1125,144 @@ function friendsListening() {
   return tiles ? `<h2 class="sech">Friends listening</h2><div class="recent">${tiles}</div>` : "";
 }
 
+/* ---------- releases: albums, EPs and singles ----------
+   A release is a titled, ordered set of your songs under an artist name, with a cover. */
+let releases = [], relByTrack = new Map(), relNoTable = false;
+const REL_TYPES = { album: "Album", ep: "EP", single: "Single" };
+const relCoverUrl = (r) => r && r.cover_path ? sb.storage.from("music").getPublicUrl(r.cover_path).data.publicUrl : "";
+function relCoverUrlFor(t) { const r = relByTrack.get(String(t.id)); return r ? relCoverUrl(r) || "" : ""; }
+const relTracks = (r) => (r.track_ids || []).map((id) => all.find((t) => String(t.id) === String(id))).filter(Boolean);
+const relYear = (r) => new Date(r.release_date || r.created_at || Date.now()).getFullYear();
+function relArt(r) {
+  const u = relCoverUrl(r) || (relTracks(r).find((t) => t.cover_path) ? coverUrl(relTracks(r).find((t) => t.cover_path)) : "");
+  return u ? `<span class="cover"><img src="${u}" alt="" loading="lazy" decoding="async"></span>` : discHTML({ id: "rel:" + r.id });
+}
+const relCard = (r) => `<button class="relcard" data-rel="${esc(r.id)}" title="${esc(r.title)}"><span class="relart">${relArt(r)}</span><span class="reltitle">${esc(r.title)}</span><span class="sub">${REL_TYPES[r.type] || "Album"} · ${relYear(r)}</span></button>`;
+const relRow = (r) => `<div class="track trow prow" tabindex="0" data-rel="${esc(r.id)}"><span class="lcov">${relArt(r)}</span>
+  <span class="meta"><span class="t">${esc(r.title)}</span><span class="by">${REL_TYPES[r.type] || "Album"} · ${esc(r.artist)}</span></span><span class="tact"></span></div>`;
+const releasesBy = (name) => releases.filter((r) => r.artist === name && relTracks(r).length);
+function newReleasesRow() {
+  const since = new Date(Date.now() - 30 * 86400000).toISOString();
+  const fresh = releases.filter((r) => String(r.release_date || r.created_at) > since && relTracks(r).length).slice(0, 8);
+  return fresh.length ? `<h2 class="sech">New releases</h2><div class="relgrid">${fresh.map(relCard).join("")}</div>` : "";
+}
+// --- editor
+let relEdit = null; // { id?, type, title, artist, track_ids, cover_path, pendingCover, coverUrl, dropCover, description }
+function myArtistNames() {
+  const names = new Set(all.filter((t) => t.user_id === me.id && hasArtist(t)).map(artistOf));
+  for (const r of artistInfo.values()) if (r.claimed_by === me.id) names.add(r.name);
+  return [...names];
+}
+function openRelease(existing, presetArtist) {
+  if (relNoTable) { alert('Releases need a one-time setup: run the "RELEASES" SQL from the top of js/app.js in Supabase > SQL Editor.'); return; }
+  const mineNames = myArtistNames();
+  relEdit = existing ? { ...existing, track_ids: [...(existing.track_ids || [])], pendingCover: null, dropCover: false }
+    : { type: "album", title: "", artist: presetArtist || mineNames[0] || myName(), track_ids: [], cover_path: null, pendingCover: null, dropCover: false, description: "" };
+  $("relHead").textContent = existing ? "Edit release" : "New release";
+  $("relTitle").value = relEdit.title; $("relArtist").value = relEdit.artist; $("relDesc").value = relEdit.description || "";
+  $("relArtists").innerHTML = mineNames.map((n) => `<option value="${esc(n)}">`).join("");
+  $("relSave").textContent = existing ? "Save changes" : "Release";
+  $("relDelete").classList.toggle("hide", !existing);
+  $("relMsg").textContent = ""; $("relPicker").classList.add("hide");
+  paintRelEditor(); openOv("relModal");
+}
+function paintRelEditor() {
+  const e = relEdit; if (!e) return;
+  document.querySelectorAll("#relType [data-rt]").forEach((b) => { const on = b.dataset.rt === e.type; b.classList.toggle("go", on); b.setAttribute("aria-checked", String(on)); });
+  const songs = e.track_ids.map((id) => all.find((t) => String(t.id) === String(id))).filter(Boolean);
+  const cover = e.coverUrl || (!e.dropCover && e.cover_path ? relCoverUrl(e) : "") || (songs.find((t) => t.cover_path) ? coverUrl(songs.find((t) => t.cover_path)) : "");
+  $("relPrev").innerHTML = cover ? `<img src="${cover}" alt="">` : discHTML({ id: "rel:new" });
+  $("relCount").textContent = songs.length ? `· ${songs.length} song${songs.length === 1 ? "" : "s"}${(() => { const s = songs.reduce((n, t) => n + (durOf(t) || 0), 0); return s ? ", " + Math.round(s / 60) + " min" : ""; })()}` : "";
+  $("relTracks").innerHTML = songs.length ? songs.map((t, i) => `<div class="relt"><span class="wn">${i + 1}</span><span class="meta"><span class="t">${esc(t.title)}</span><span class="by">${durOf(t) ? fmt(durOf(t)) : ""}</span></span>
+    <button class="rbtn" data-relup="${i}" aria-label="Move up" ${i ? "" : "disabled"}>▲</button><button class="rbtn" data-reldown="${i}" aria-label="Move down" ${i < songs.length - 1 ? "" : "disabled"}>▼</button><button class="rbtn rdel" data-relrm="${i}" aria-label="Remove">${ICON("ic-x")}</button></div>`).join("")
+    : '<div class="sub">No songs yet. Upload new ones or add songs you\'ve already uploaded.</div>';
+  if (!$("relPicker").classList.contains("hide")) paintRelPicker();
+}
+function paintRelPicker() {
+  const mine = all.filter((t) => t.user_id === me.id && !relEdit.track_ids.map(String).includes(String(t.id)));
+  $("relPicker").innerHTML = mine.length ? mine.map((t) => `<label class="relpick"><input type="checkbox" data-relpick="${esc(t.id)}"> <span class="meta"><span class="t">${esc(t.title)}</span><span class="by">${esc(artistOf(t))}${relByTrack.get(String(t.id)) && relByTrack.get(String(t.id)).id !== relEdit.id ? " · on " + esc(relByTrack.get(String(t.id)).title) : ""}</span></span></label>`).join("") + '<button class="go" id="relPickAdd">Add selected</button>'
+    : '<div class="sub">All your uploads are already in this release.</div>';
+}
+$("relType").onclick = (e) => { const b = e.target.closest("[data-rt]"); if (b) { relEdit.type = b.dataset.rt; paintRelEditor(); } };
+$("relTracks").onclick = (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  const ids = relEdit.track_ids, d = b.dataset;
+  if (d.relup) { const i = +d.relup; [ids[i - 1], ids[i]] = [ids[i], ids[i - 1]]; }
+  else if (d.reldown) { const i = +d.reldown; [ids[i + 1], ids[i]] = [ids[i], ids[i + 1]]; }
+  else if (d.relrm) ids.splice(+d.relrm, 1);
+  paintRelEditor();
+};
+$("relPickBtn").onclick = () => { $("relPicker").classList.toggle("hide"); paintRelPicker(); };
+$("relPicker").addEventListener("click", (e) => {
+  if (e.target.id !== "relPickAdd") return;
+  const picked = [...document.querySelectorAll("#relPicker [data-relpick]:checked")].map((x) => x.dataset.relpick);
+  relEdit.track_ids.push(...picked); $("relPicker").classList.add("hide"); paintRelEditor();
+});
+$("relUpload").onchange = async (e) => {
+  const files = [...e.target.files]; e.target.value = "";
+  if (!files.length) return;
+  relEdit.artist = $("relArtist").value.trim() || relEdit.artist;
+  const added = await uploadSongs(files, { artist: relEdit.artist, onStatus: (m) => ($("relMsg").textContent = m) });
+  if (added === null) return;
+  $("relMsg").textContent = added.length ? `Uploaded ${added.length} song${added.length === 1 ? "" : "s"} (they're in the Library too).` : "";
+  await loadAll();
+  relEdit.track_ids.push(...added.map((t) => t.id).filter((id) => all.some((x) => String(x.id) === String(id))));
+  paintRelEditor();
+};
+$("relImg").onchange = async (e) => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  try {
+    relEdit.pendingCover = await resizeImage(f, 640); relEdit.dropCover = false;
+    if (relEdit.coverUrl) URL.revokeObjectURL(relEdit.coverUrl);
+    relEdit.coverUrl = URL.createObjectURL(relEdit.pendingCover); paintRelEditor();
+  } catch (err) { $("relMsg").textContent = err.message; }
+};
+$("relCancel").onclick = () => closeOv("relModal");
+$("relSave").onclick = async () => {
+  const e = relEdit; if (!e) return;
+  e.title = $("relTitle").value.trim(); e.artist = $("relArtist").value.trim(); e.description = $("relDesc").value.trim();
+  const songs = e.track_ids.map((id) => all.find((t) => String(t.id) === String(id))).filter(Boolean);
+  if (!e.title) { $("relMsg").textContent = "Give your release a title."; $("relTitle").focus(); return; }
+  if (!e.artist) { $("relMsg").textContent = "Add the artist name."; $("relArtist").focus(); return; }
+  if (!songs.length) { $("relMsg").textContent = "Add at least one song."; return; }
+  if (songs.some((t) => t.user_id !== me.id)) { $("relMsg").textContent = "You can only release songs you uploaded."; return; }
+  const claim = artistInfo.get(e.artist);
+  if (claim && claim.claimed_by !== me.id) { $("relMsg").textContent = `${e.artist} is claimed by ${claim.claimed_name || "someone else"}, so only they can release under that name.`; return; }
+  $("relSave").disabled = true; $("relMsg").textContent = "Saving...";
+  let newPath = null;
+  if (e.pendingCover) {
+    newPath = `${me.id}/release_${Date.now()}.jpg`;
+    const up = await sb.storage.from("music").upload(newPath, e.pendingCover, { contentType: "image/jpeg" });
+    if (up.error) { $("relMsg").textContent = "Cover upload failed: " + up.error.message; $("relSave").disabled = false; return; }
+  }
+  const row = { title: e.title, artist: e.artist, type: e.type, description: e.description || null, track_ids: songs.map((t) => t.id),
+    cover_path: newPath || (e.dropCover ? null : e.cover_path || null) };
+  const res = e.id ? await sb.from("releases").update(row).eq("id", e.id).select().single()
+                   : await sb.from("releases").insert({ ...row, user_id: me.id, release_date: new Date().toISOString() }).select().single();
+  $("relSave").disabled = false;
+  if (res.error) {
+    if (newPath) sb.storage.from("music").remove([newPath]);
+    $("relMsg").textContent = /releases|schema cache|does not exist/i.test(res.error.message || "") ? 'Releases need a one-time setup: run the "RELEASES" SQL from the top of js/app.js in Supabase > SQL Editor.' : res.error.message;
+    return;
+  }
+  if (newPath && e.cover_path) sb.storage.from("music").remove([e.cover_path]);
+  // the songs carry the release's artist name, so they appear on the artist page
+  await Promise.all(songs.filter((t) => artistOf(t) !== e.artist).map((t) => sb.from("tracks").update({ artist: e.artist }).eq("id", t.id)));
+  const id = (res.data && res.data.id) || e.id;
+  closeOv("relModal"); sfxDing(); toast(e.id ? "Release updated" : `${REL_TYPES[e.type]} released!`);
+  await loadAll(); if (id) go("rel:" + id);
+};
+$("relDelete").onclick = async () => {
+  const e = relEdit; if (!e || !e.id) return;
+  if (!confirm(`Delete "${e.title}"? The songs stay in Budsbox; only the release is removed.`)) return;
+  const { error } = await sb.from("releases").delete().eq("id", e.id);
+  if (error) { $("relMsg").textContent = error.message; return; }
+  if (e.cover_path) sb.storage.from("music").remove([e.cover_path]);
+  closeOv("relModal"); sfxDrop(); toast("Release deleted");
+  await loadAll(); go(releasesBy(e.artist).length || songsBy(e.artist).length ? "ar:" + e.artist : "lib");
+};
+$("csRelease").onclick = () => { closeOv("createSheet"); openRelease(null); };
+
 /* ---------- password: forgot + change ---------- */
 $("forgot").onclick = async () => {
   const email = $("email").value.trim();
@@ -1154,10 +1318,11 @@ $("nameSave").onclick = async () => {
 
 /* ---------- data ---------- */
 async function loadAll() {
-  const [t, p, ar] = await Promise.all([
+  const [t, p, ar, rl] = await Promise.all([
     sb.from("tracks").select("*").order("created_at", { ascending: false }),
     sb.from("playlists").select("*").order("created_at", { ascending: true }),
     sb.from("artists").select("*"),
+    sb.from("releases").select("*").order("release_date", { ascending: false }),
   ]);
   await Promise.all([loadLikes(), loadFollows()]);
   if (ar.error) { artistInfo = new Map(); artistsNoTable = /artists|schema cache|does not exist/i.test(ar.error.message || ""); }
@@ -1168,8 +1333,12 @@ async function loadAll() {
     if (!c) { say(t.error.message); return; }
     t.data = c.tracks; p.data = c.playlists; p.error = null;
     if (!artistInfo.size) artistInfo = new Map((c.artists || []).map((r) => [r.name, r]));
+    rl.data = c.releases || []; rl.error = null;
     if (!loadAll.offlineNoted) { loadAll.offlineNoted = true; toast("You're offline \u2014 showing your downloaded music"); }
-  } else saveOfflineData(t.data, p.error ? null : p.data, ar.error ? null : ar.data);
+  } else saveOfflineData(t.data, p.error ? null : p.data, ar.error ? null : ar.data, rl.error ? null : rl.data);
+  if (rl.error) { releases = []; relNoTable = /releases|schema cache|does not exist/i.test(rl.error.message || ""); }
+  else { releases = rl.data || []; relNoTable = false; }
+  relByTrack = new Map(); for (const r of releases) for (const id of r.track_ids || []) if (!relByTrack.has(String(id))) relByTrack.set(String(id), r);
   all = t.data || [];
   // keep queued songs pointing at fresh rows (plays, lyrics, covers)
   const fresh = (x) => all.find((y) => y.id === x.id);
@@ -1327,21 +1496,23 @@ function drawLists() {
     html = `<h2 class="sech">Results for "${esc($("q").value.trim())}"</h2>`;
     if (!shown.length && !pls.length && !ars.length) html += '<div class="empty">No matches. Try a song title or artist.</div>';
     if (ars.length) html += '<h2 class="sech">Artists</h2>' + ars.slice(0, 6).map(artistRow).join("");
+    const rls = releases.filter((r) => relTracks(r).length && (r.title.toLowerCase().includes(query) || r.artist.toLowerCase().includes(query)));
+    if (rls.length) html += '<h2 class="sech">Albums</h2>' + rls.slice(0, 6).map(relRow).join("");
     if (shown.length) { html += `<div class="secbar"><h2 class="sech">Songs</h2>${sortSel()}</div>` + swipeHint + listHead(); shown.forEach((t, i) => { html += trackRow(t, i, "", true); }); }
     if (pls.length) { html += '<h2 class="sech">Playlists</h2>'; pls.forEach((p) => { html += plRow(p); }); }
   } else if (view === "lib") {
     shown = sorted(all);
-    html = recentTiles() + friendsListening() + newFromFollowed() + heroHTML({
+    html = recentTiles() + friendsListening() + newReleasesRow() + newFromFollowed() + heroHTML({
       kind: "Everyone's music", title: "Library", art: '<span class="cover pix"><img src="icon-512.png" alt=""></span>', canPlay: all.length > 0,
       meta: `<b>${esc(myName())}</b> · ${all.length} song${all.length === 1 ? "" : "s"} · ${plays(all)} listens${len(all)}`,
-      extras: `<label class="btn uplbtn" for="file">+ Upload</label><span class="grow"></span>${sortSel()}`,
+      extras: `<label class="btn uplbtn" for="file">+ Upload</label><button class="btn uplbtn" data-newrelease="1">+ Release</button><span class="grow"></span>${sortSel()}`,
     });
     if (!all.length) html += '<div class="empty">No music yet. Upload a song to start the world.</div>';
     else html += swipeHint + listHead();
     shown.forEach((t, i) => { html += trackRow(t, i, "", true); });
   } else if (view === "pls") {
     shown = [];
-    const chips = [["all", "All"], ["mine", "By you"], ["shared", "Shared"], ["artists", "Artists"]];
+    const chips = [["all", "All"], ["mine", "By you"], ["shared", "Shared"], ["albums", "Albums"], ["artists", "Artists"]];
     let pls = lists.filter((p) => libFilter === "all" || (libFilter === "mine" ? p.user_id === me.id : p.user_id !== me.id));
     pls = libSort === "alpha"
       ? [...pls].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
@@ -1349,7 +1520,11 @@ function drawLists() {
     html = `<div class="secbar deskonly"><h2 class="sech">Your Library</h2></div>
       <div class="chips" role="group" aria-label="Filter">${chips.map(([v, l]) => `<button class="chip${libFilter === v ? " on" : ""}" data-chip="${v}" aria-pressed="${libFilter === v}">${l}</button>`).join("")}</div>
       <div class="lsort"><button class="lsortbtn" data-lsort="1" aria-label="Change sort">${ICON("ic-sort")}${libSort === "alpha" ? "Alphabetical" : "Recents"}</button></div>`;
-    if (libFilter === "artists") {
+    if (libFilter === "albums") {
+      const rs = releases.filter((r) => relTracks(r).length);
+      const list = libSort === "alpha" ? [...rs].sort((a, b) => a.title.toLowerCase().localeCompare(b.title.toLowerCase())) : rs;
+      html += list.length ? list.map(relRow).join("") : '<div class="empty">No albums or EPs yet. Release one from Create \u2192 Album or EP.</div>';
+    } else if (libFilter === "artists") {
       let names = artistNames();
       if (libSort === "alpha") names = [...names].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
       html += names.length ? names.map(artistRow).join("") : '<div class="empty">No artists yet. Add an artist to a song with the pencil (Edit song).</div>';
@@ -1363,6 +1538,23 @@ function drawLists() {
     html += `<div class="track trow prow" tabindex="0" data-newpl="1"><span class="lcov"><span class="newtile">${ICON("ic-plus")}</span></span>
       <span class="meta"><span class="t">New playlist</span><span class="by">Create one and add songs with \u2295</span></span><span class="tact"></span></div>`;
     }
+  } else if (view.startsWith("rel:")) {
+    const r = releases.find((x) => String(x.id) === view.slice(4));
+    if (!r) { view = "lib"; return drawLists(); }
+    shown = relTracks(r);
+    const mineR = r.user_id === me.id;
+    html = heroHTML({
+      kind: REL_TYPES[r.type] || "Album", title: r.title, back: true, canPlay: shown.length > 0,
+      art: relArt(r),
+      meta: `<b class="alink" data-artist="${esc(r.artist)}">${esc(r.artist)}</b> \u00B7 ${relYear(r)} \u00B7 ${shown.length} song${shown.length === 1 ? "" : "s"}${len(shown).replace(" \u00B7 ", ", ")}`,
+      extras: dlButton("rel:" + r.id) + (mineR ? `<span class="grow"></span><button class="rbtn hbtn" data-reledit="1" aria-label="Edit release" title="Edit release">${ICON("ic-pen")}</button>` : ""),
+    });
+    if (r.description) html += `<div class="arbio"><p>${esc(r.description)}</p></div>`;
+    html += listHead();
+    shown.forEach((t, i) => { html += trackRow(t, i, "", true); });
+    html += `<div class="sub reldate">Released ${esc(new Date(r.release_date || r.created_at).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }))}</div>`;
+    const more = releasesBy(r.artist).filter((x) => x.id !== r.id);
+    if (more.length) html += `<h2 class="sech">More by ${esc(r.artist)}</h2><div class="relgrid">${more.map(relCard).join("")}</div>`;
   } else if (view === "liked") {
     shown = likedTracks();
     html = heroHTML({
@@ -1385,11 +1577,14 @@ function drawLists() {
       meta: `${songs.length} song${songs.length === 1 ? "" : "s"} \u00B7 ${plays(songs)} listens${len(songs)}` + (followerCount.get(name) ? ` \u00B7 ${followerCount.get(name)} follower${followerCount.get(name) === 1 ? "" : "s"}` : "") + (info ? ` \u00B7 claimed by <b>${esc(info.claimed_name || "someone")}</b>` : ""),
       extras: `<button class="btn followbtn${isFollowing(name) ? " on" : ""}" data-follow="1" aria-pressed="${isFollowing(name)}">${isFollowing(name) ? "Following" : "Follow"}</button>` +
         (mineA ? `<button class="rbtn hbtn" data-aredit="1" aria-label="Edit artist profile" title="Edit artist profile (picture, bio)">${ICON("ic-pen")}</button>`
-        : canClaim(name) ? '<button class="btn claimbtn" data-arclaim="1">Claim artist</button>' : ""),
+        : canClaim(name) ? '<button class="btn claimbtn" data-arclaim="1">Claim artist</button>' : "") +
+        (songs.some((t) => t.user_id === me.id) && (!info || info.claimed_by === me.id) ? '<button class="btn claimbtn" data-newrel="1">+ New release</button>' : ""),
     }).replace('<div class="hart">', '<div class="hart round">');
     if (info && info.bio && info.bio.trim()) html += `<div class="arbio"><h2 class="sech">About</h2><p>${esc(info.bio.trim())}</p></div>`;
     html += '<h2 class="sech">Popular</h2>' + swipeHint + listHead();
     shown.forEach((t, i) => { html += trackRow(t, i, "", true); });
+    const disc = releasesBy(name);
+    if (disc.length) html += `<h2 class="sech">Discography</h2><div class="relgrid">${disc.map(relCard).join("")}</div>`;
   } else {
     const p = lists.find((x) => x.id === view.slice(3));
     if (!p) { view = "pls"; return drawLists(); }
@@ -1485,7 +1680,7 @@ let prevView = "pls";
 
 function go(v) {
   if (!(v.startsWith("pl:") && v === view)) reorderId = null;
-  if ((v.startsWith("ar:") || v.startsWith("pl:") || v === "liked") && v !== view) prevView = (query || mSearch) ? "pls" : view;
+  if ((v.startsWith("ar:") || v.startsWith("pl:") || v.startsWith("rel:") || v === "liked") && v !== view) prevView = (query || mSearch) ? "pls" : view;
   clearSearch(); view = v; mSearch = false;
   mtab = v === "lib" ? "home" : "library";
   paintTabs(); drawLists(); $("main").scrollTop = 0; scrollTo(0, 0);
@@ -1539,6 +1734,10 @@ $("lists").onclick = (e) => {
     if (b.dataset.like !== undefined) return toggleLike(shown[+b.dataset.like]);
     if (b.dataset.recent) return openRecent(b.dataset.recent);
     if (b.dataset.dl) return toggleDownload(b.dataset.dl);
+    if (b.dataset.rel) return go("rel:" + b.dataset.rel);
+    if (b.dataset.reledit) return openRelease(releases.find((x) => String(x.id) === view.slice(4)));
+    if (b.dataset.newrel) return openRelease(null, view.slice(3));
+    if (b.dataset.newrelease) return openRelease(null);
     if (b.dataset.follow) return toggleFollow(view.slice(3));
     if (b.dataset.add !== undefined) return openPicker(shown[+b.dataset.add]);
     if (b.dataset.edit !== undefined) return openEdit(shown[+b.dataset.edit]);
@@ -1562,11 +1761,12 @@ $("lists").onclick = (e) => {
   if (b && b.dataset.lsort) { libSort = libSort === "alpha" ? "recent" : "alpha"; try { localStorage.setItem("jukebox_libsort", libSort); } catch (e2) {} return drawLists(); }
   if (e.target.closest("[data-golib]")) return go("lib");
   if (e.target.closest("[data-goliked]")) return go("liked");
+  const rr = e.target.closest(".track[data-rel]"); if (rr) return go("rel:" + rr.dataset.rel);
   if (e.target.closest("[data-newpl]")) return openCreate(true);
   const ar = e.target.closest("[data-ar]");
   if (ar) return goArtist(ar.dataset.ar);
   const al = e.target.closest(".alink");
-  if (al && !isPhoneLayout()) return goArtist(al.dataset.artist);
+  if (al && (!isPhoneLayout() || !al.closest(".track"))) return goArtist(al.dataset.artist); // phones: tapping a song row plays it
   const pl = e.target.closest("[data-pl]");
   if (pl) return go("pl:" + pl.dataset.pl);
   const r = e.target.closest(".track[data-i]");
@@ -1578,6 +1778,7 @@ $("lists").onkeydown = (e) => {
   if (e.target.dataset.golib) go("lib");
   else if (e.target.dataset.newpl) openCreate(true);
   else if (e.target.dataset.ar) goArtist(e.target.dataset.ar);
+  else if (e.target.dataset.rel) go("rel:" + e.target.dataset.rel);
   else if (e.target.dataset.pl) go("pl:" + e.target.dataset.pl);
   else pickPlay(shown[+e.target.dataset.i], shown);
 };
@@ -1591,9 +1792,9 @@ function pickPlay(t, list, wholeList) {
   }
   // "Playing from" label for the full-screen player
   const pl = view.startsWith("pl:") && lists.find((x) => x.id === view.slice(3));
-  ctxName = query ? 'Search "' + $("q").value.trim() + '"' : pl ? pl.name : view.startsWith("ar:") ? view.slice(3) : view === "liked" ? "Liked Songs" : "Library";
+  ctxName = query ? 'Search "' + $("q").value.trim() + '"' : pl ? pl.name : view.startsWith("ar:") ? view.slice(3) : view.startsWith("rel:") ? (releases.find((r) => String(r.id) === view.slice(4)) || {}).title || "Album" : view === "liked" ? "Liked Songs" : "Library";
   // remember for "Recently played" on Home: the collection you played from, or the song itself
-  rememberRecent(view.startsWith("pl:") || view.startsWith("ar:") || view === "liked" ? (query ? "t:" + t.id : view) : "t:" + t.id);
+  rememberRecent(view.startsWith("pl:") || view.startsWith("ar:") || view.startsWith("rel:") || view === "liked" ? (query ? "t:" + t.id : view) : "t:" + t.id);
   playTrack(t, list);
 }
 
@@ -1908,7 +2109,7 @@ function setMeta(t) {
   try {
     navigator.mediaSession.metadata = new MediaMetadata({
       title: t.title, artist: artistOf(t), album: "Budsbox",
-      artwork: t.cover_path ? [{ src: coverUrl(t), sizes: "320x320", type: "image/jpeg" }] : [],
+      artwork: artUrl(t) ? [{ src: artUrl(t), sizes: "320x320", type: "image/jpeg" }] : [],
     });
   } catch (e) {}
 }
@@ -2321,7 +2522,7 @@ function renderFull() {
   if (!me) return;
   const t = curTrack();
   $("fFrom").textContent = jam.role === "guest" ? (jam.last?.host || "a friend") + "'s Jam" : ctxName;
-  $("fArt").innerHTML = t ? (t.cover_path ? `<span class="cover"><img src="${coverUrl(t)}" alt="Album cover"></span>` : discHTML(t)) : discHTML({ id: "idle" });
+  $("fArt").innerHTML = t ? (artUrl(t) ? `<span class="cover"><img src="${artUrl(t)}" alt="Album cover"></span>` : discHTML(t)) : discHTML({ id: "idle" });
   $("fTitle").textContent = t ? t.title : "Nothing playing";
   $("fBy").textContent = t ? artistOf(t) : "";
   $("fBy").classList.toggle("alinkish", !!(t && hasArtist(t)));
@@ -2395,42 +2596,49 @@ function fileDuration(file) {
 const BIG_MB = 15;
 const mb = (n) => (n / 1048576).toFixed(n < 10485760 ? 1 : 0) + " MB";
 $("file").onchange = async (e) => {
-  const files = [...e.target.files];
+  const files = [...e.target.files]; e.target.value = "";
+  const added = await uploadSongs(files, {});
+  if (added === null) return;
+  if (added.length) { say(""); toast(added.length === 1 ? "Uploaded!" : `Uploaded ${added.length} songs!`); sfxDing(); }
+  loadAll();
+};
+// upload audio files as songs; returns the new rows (null if you cancelled the big-file warning)
+async function uploadSongs(files, { artist, onStatus } = {}) {
+  const status = onStatus || say;
   // big files use up the free storage and every play uses bandwidth: warn first
   const big = files.filter((f) => f.size > BIG_MB * 1048576);
   if (big.length) {
     const list = big.slice(0, 4).map((f) => `\u2022 ${f.name} (${mb(f.size)})`).join("\n") + (big.length > 4 ? `\n\u2022 and ${big.length - 4} more` : "");
     const goOn = confirm(`Heads up: ${big.length === 1 ? "this file is" : "these files are"} large:\n\n${list}\n\nBig files fill up your free storage fast, and every play uses bandwidth. MP3s at 128\u2013256 kbps are usually 3\u20138 MB per song.\n\nUpload anyway?`);
-    if (!goOn) { e.target.value = ""; return; }
+    if (!goOn) return null;
   }
-  let ok = 0, n = 0;
+  const added = []; let n = 0;
   for (const f of files) {
     n++;
-    say(`Uploading ${files.length > 1 ? n + " of " + files.length + ": " : ""}${f.name}...`);
+    status(`Uploading ${files.length > 1 ? n + " of " + files.length + ": " : ""}${f.name}...`);
     const dur = await fileDuration(f);
     const safe = f.name.replace(/[^\w.\-]+/g, "_");
     const path = `${me.id}/${Date.now()}_${safe}`;
     const up = await sb.storage.from("music").upload(path, f, { contentType: f.type || "audio/mpeg" });
-    if (up.error) { say("Upload failed: " + up.error.message); continue; }
+    if (up.error) { status("Upload failed: " + up.error.message); continue; }
     const meta = parseName(f.name);
     const row = { title: meta.title, path, user_id: me.id, uploader: myName() };
-    if (meta.artist) row.artist = meta.artist;
+    if (artist) row.artist = artist; else if (meta.artist) row.artist = meta.artist;
     if (dur) row.duration = dur;
-    let { error } = await sb.from("tracks").insert(row);
+    const ins = () => sb.from("tracks").insert(row).select().single();
+    let { data, error } = await ins();
     if (error && /duration/i.test(error.message || "") && row.duration) { // duration column not added yet
-      delete row.duration; ({ error } = await sb.from("tracks").insert(row));
+      delete row.duration; ({ data, error } = await ins());
     }
     if (missingArtistCol(error)) { // artist column not added yet: save without it
       delete row.artist; row.title = f.name.replace(/\.[^.]+$/, "");
-      ({ error } = await sb.from("tracks").insert(row));
+      ({ data, error } = await ins());
     }
-    if (error) { sb.storage.from("music").remove([path]); say(error.message); continue; }
-    ok++;
+    if (error) { sb.storage.from("music").remove([path]); status(error.message); continue; }
+    added.push(data && data.id ? data : { ...row, id: "tmp" + Date.now() });
   }
-  e.target.value = "";
-  if (ok) { say(""); toast(ok === 1 ? "Uploaded!" : `Uploaded ${ok} songs!`); sfxDing(); }
-  loadAll();
-};
+  return added;
+}
 
 async function removeTrack(t) {
   if (!t || !confirm("Delete " + t.title + "?")) return;
@@ -2699,13 +2907,13 @@ function renderLyrics() {
   $("lyTitle").textContent = t ? t.title : "Nothing playing";
   $("lyBy").textContent = by;
   $("lyAdded").textContent = ab; $("lyAdded").classList.toggle("hide", !ab);
-  $("lyArt").classList.toggle("hide", !(t && t.cover_path));
-  $("lyArt").innerHTML = t && t.cover_path ? `<img src="${coverUrl(t)}" alt="">` : "";
+  $("lyArt").classList.toggle("hide", !artUrl(t));
+  $("lyArt").innerHTML = artUrl(t) ? `<img src="${artUrl(t)}" alt="">` : "";
   $("lyText").textContent = lyr;
   $("lyEdit").classList.toggle("hide", !canEdit);
   // desktop Now Playing panel
   $("npCtx").textContent = jam.role === "guest" ? (jam.last?.host || "a friend") + "'s Jam" : (t ? ctxName : "Now playing");
-  $("npArt").innerHTML = t ? (t.cover_path ? `<span class="cover"><img src="${coverUrl(t)}" alt="Album cover"></span>` : discHTML(t)) : discHTML({ id: "idle" });
+  $("npArt").innerHTML = t ? (artUrl(t) ? `<span class="cover"><img src="${artUrl(t)}" alt="Album cover"></span>` : discHTML(t)) : discHTML({ id: "idle" });
   $("npTitle").textContent = t ? t.title : "Nothing playing";
   $("npBy").textContent = by;
   $("npAdd").classList.toggle("invis", !t);
