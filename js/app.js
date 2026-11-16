@@ -411,7 +411,7 @@ function setUser(u) {
 }
 
 function render() {
-  if (me) loadAppearanceFromAccount();
+  if (me) { loadAppearanceFromAccount(); paintTabs(); }
   $("auth").classList.toggle("hide", !!me);
   $("app").classList.toggle("hide", !me);
   $("tabbar").classList.toggle("hide", !me);
@@ -1503,7 +1503,7 @@ function drawLists() {
   } else if (view === "lib") {
     shown = sorted(all);
     html = recentTiles() + friendsListening() + newReleasesRow() + newFromFollowed() + heroHTML({
-      kind: "Everyone's music", title: "Library", art: '<span class="cover pix"><img src="icon-512.png" alt=""></span>', canPlay: all.length > 0,
+      kind: "Everyone's music", title: "Library", art: '<span class="cover"><img src="icon-512.png" alt=""></span>', canPlay: all.length > 0,
       meta: `<b>${esc(myName())}</b> · ${all.length} song${all.length === 1 ? "" : "s"} · ${plays(all)} listens${len(all)}`,
       extras: `<label class="btn uplbtn" for="file">+ Upload</label><button class="btn uplbtn" data-newrelease="1">+ Release</button><span class="grow"></span>${sortSel()}`,
     });
@@ -1690,7 +1690,9 @@ let mtab = "home", mSearch = false, libFilter = "all";
 let libSort = (() => { try { return localStorage.getItem("jukebox_libsort") || "recent"; } catch (e) { return "recent"; } })();
 function paintTabs() {
   document.querySelectorAll("#tabbar [data-tab]").forEach((b) => { const on = b.dataset.tab === mtab; b.classList.toggle("on", on); if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
-  $("pTitle").textContent = mtab === "search" ? "Search" : mtab === "library" ? "Your Library" : "Budsbox";
+  if (mtab === "home") $("pTitle").innerHTML = '<svg class="logomark" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="#161816"/><circle cx="32" cy="32" r="24" fill="none" stroke="#ffffff22" stroke-width="1.6"/><circle cx="32" cy="32" r="18.5" fill="none" stroke="#ffffff1a" stroke-width="1.6"/><circle cx="32" cy="32" r="11" fill="var(--gold)"/><circle cx="32" cy="32" r="2.6" fill="#161816"/></svg><span class="wordmark">budsbox</span>';
+  else $("pTitle").textContent = mtab === "search" ? "Search" : "Your Library";
+  $("pTitle").classList.toggle("isbrand", mtab === "home");
   document.body.classList.toggle("m-search", mSearch);
 }
 function setTab(t) {
