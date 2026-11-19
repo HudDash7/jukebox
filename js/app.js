@@ -190,6 +190,12 @@ JAM (listen together) needs no SQL: it uses Supabase Realtime broadcast + presen
 */
 
 const $ = (id) => document.getElementById(id);
+const calmMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+// play a short transform/opacity animation (cheap for the browser); resolves when done
+function anim(el, frames, ms) {
+  if (!el || calmMotion() || !el.animate) return Promise.resolve();
+  try { return el.animate(frames, { duration: ms, easing: "cubic-bezier(.2,.8,.2,1)" }).finished.catch(() => {}); } catch (e) { return Promise.resolve(); }
+}
 const APP_BUILD = (document.querySelector('meta[name="budsbox-build"]') || {}).content || "dev"; // set in index.html
 async function checkUpdate() {
   try {
@@ -198,7 +204,6 @@ async function checkUpdate() {
     if (m && m[1] !== APP_BUILD) $("upd").classList.remove("hide");
   } catch (e) {}
 }
-if (/\.netlify\.app$/.test(location.hostname) || /[?&]nlbadge/.test(location.search)) document.documentElement.classList.add("nl-badge");
 const audio = $("audio");
 const isTouch = matchMedia("(pointer: coarse)").matches;
 let sb, me;
@@ -270,23 +275,29 @@ setTimeout(checkUpdate, 5000);
 
 /* ---------- pixel music discs ---------- */
 const DISC_COLORS = ["#55ff55", "#ff5555", "#55ffff", "#aa00aa", "#333333"]; // Cat, Chirp, Blocks, Mellohi, Stal
-function makeDisc(color) {
-  let r = "";
+// pixel music discs: drawn once per colour onto a tiny canvas and reused as images
+// (much cheaper to scroll than hundreds of 180-shape SVG drawings)
+function discDataUrl(color) {
+  const c = document.createElement("canvas"); c.width = c.height = 16;
+  const g = c.getContext("2d");
   for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
     const dx = x - 7.5, dy = y - 7.5, d = Math.hypot(dx, dy);
     if (d > 7.6) continue;
-    let c = "#101010", o = 1;
-    if (d > 5.4 && Math.atan2(dy, dx) > -2.6 && Math.atan2(dy, dx) < -1.7) c = "#5a5a5a"; // glint, so the spin is visible
-    if (d <= 4.6) { c = color; if (dx < -0.5) o = 0.7; }                                   // half-shaded label
-    if (d < 1.6) { c = "#1d1f1d"; o = 1; }                                                  // center hole
-    r += `<rect x="${x}" y="${y}" width="1" height="1" fill="${c}"${o < 1 ? ` fill-opacity="${o}"` : ""}/>`;
+    let col = "#101010", alpha = 1;
+    if (d > 5.4 && Math.atan2(dy, dx) > -2.6 && Math.atan2(dy, dx) < -1.7) col = "#5a5a5a"; // glint, so the spin is visible
+    if (d <= 4.6) { col = color; if (dx < -0.5) alpha = 0.7; }                                 // half-shaded label
+    if (d < 1.6) { col = "#1d1f1d"; alpha = 1; }                                                // centre hole
+    g.globalAlpha = alpha; g.fillStyle = col; g.fillRect(x, y, 1, 1);
   }
-  return r;
+  return c.toDataURL("image/png");
 }
-// FIX: append the discs. Assigning innerHTML wiped the pencil / queue / lyrics icons.
-$("defs").insertAdjacentHTML("beforeend", DISC_COLORS.map((c, i) => `<symbol id="disc${i}" viewBox="0 0 16 16">${makeDisc(c)}</symbol>`).join(""));
+(() => {
+  const st = document.createElement("style");
+  st.textContent = DISC_COLORS.map((col, i) => `.dc${i}{background-image:url(${discDataUrl(col)})}`).join("");
+  document.head.appendChild(st);
+})();
 const hash = (s) => { s = String(s); let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; };
-const discHTML = (t) => `<span class="disc"><svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true"><use href="#disc${hash(t.id) % DISC_COLORS.length}"/></svg></span>`;
+const discHTML = (t) => `<span class="disc dc${hash(t.id) % DISC_COLORS.length}" aria-hidden="true"></span>`;
 const coverUrl = (t) => sb.storage.from("music").getPublicUrl(t.cover_path).data.publicUrl;
 // a song's picture: its own cover, else the cover of the album/EP it's on
 const artUrl = (t) => !t ? "" : t.cover_path ? coverUrl(t) : relCoverUrlFor(t);
@@ -331,7 +342,9 @@ $("abSeg").onclick = (e) => { const b = e.target.closest("[data-ab]"); if (b) se
 /* ---------- settings dropdown ---------- */
 const menuOpen = () => !$("menu").classList.contains("hide");
 function toggleMenu(open) {
+  const wasOpen = !$("menu").classList.contains("hide");
   $("menu").classList.toggle("hide", !open);
+  if (open && !wasOpen) anim($("menu"), [{ opacity: 0, transform: "translateY(-6px) scale(.98)" }, { opacity: 1, transform: "none" }], 170);
   $("gear").setAttribute("aria-expanded", String(open));
   $("gear").classList.toggle("go", open);
   if (!open) $("nameForm").classList.add("hide");
@@ -340,10 +353,25 @@ $("gear").onclick = () => toggleMenu(!menuOpen());
 document.addEventListener("click", (e) => { if (menuOpen() && !e.target.closest("#menuWrap")) toggleMenu(false); });
 
 /* ---------- overlays ---------- */
-const openOv = (id) => $(id).classList.remove("hide");
-const isOpen = (id) => !$(id).classList.contains("hide");
+function openOv(id) {
+  const o = $(id);
+  if (o.classList.contains("closing")) { o.classList.remove("closing"); return; } // reopened mid-fade: keep it
+  if (!o.classList.contains("hide")) return;
+  o.classList.remove("hide");
+  const box = o.querySelector(".panel, .sheet"), sheet = box && box.classList.contains("sheet");
+  anim(o, [{ opacity: 0 }, { opacity: 1 }], 160);
+  anim(box, sheet ? [{ transform: "translateY(100%)" }, { transform: "none" }] : [{ opacity: 0, transform: "translateY(10px) scale(.97)" }, { opacity: 1, transform: "none" }], sheet ? 260 : 200);
+}
+const isOpen = (id) => !$(id).classList.contains("hide") && !$(id).classList.contains("closing");
 function closeOv(id) {
-  $(id).classList.add("hide");
+  const o = $(id); if (o.classList.contains("hide") || o.classList.contains("closing")) return;
+  const box = o.querySelector(".panel, .sheet"), sheet = box && box.classList.contains("sheet");
+  if (calmMotion()) o.classList.add("hide");
+  else {
+    o.classList.add("closing");
+    anim(box, sheet ? [{ transform: "none" }, { transform: "translateY(100%)" }] : [{ opacity: 1 }, { opacity: 0, transform: "scale(.98)" }], sheet ? 200 : 140);
+    anim(o, [{ opacity: 1 }, { opacity: 0 }], sheet ? 200 : 150).then(() => { if (o.classList.contains("closing")) { o.classList.add("hide"); o.classList.remove("closing"); } });
+  }
   if (id === "modal") { pickTrack = null; if (view !== "lib") drawLists(); }
 }
 document.querySelectorAll(".overlay").forEach((o) => o.addEventListener("click", (e) => { if (e.target === o) closeOv(o.id); }));
@@ -383,9 +411,10 @@ let toastT = 0;
 function toast(text) {
   const el = $("toast");
   el.textContent = text;
-  el.classList.remove("hide");
+  if (el.classList.contains("hide")) { el.classList.remove("hide"); anim(el, [{ opacity: 0, transform: "translate(-50%, 8px)" }, { opacity: 1, transform: "translate(-50%, 0)" }], 180); }
   clearTimeout(toastT);
-  toastT = setTimeout(() => el.classList.add("hide"), 1800);
+  toastT = setTimeout(() => anim(el, [{ opacity: 1 }, { opacity: 0 }], 200).then(() => { if (Date.now() - toast.at >= 1800) el.classList.add("hide"); }), 1800);
+  toast.at = Date.now();
 }
 
 /* ---------- auth ---------- */
@@ -499,6 +528,11 @@ async function toggleLike(t) {
   const id = String(t.id), was = liked.has(id);
   if (was) liked.delete(id); else liked.set(id, new Date().toISOString());
   paintLikes(); sfxClick(); saveLocalLikes();
+  if (!was) { // a little pop on the hearts for this song
+    const hits = [...document.querySelectorAll("#lists [data-like]")].filter((b) => String(shown[+b.dataset.like]?.id) === id);
+    if (String(nowId) === id) hits.push($("pLike"), $("fLike"), $("npLike"));
+    hits.forEach((b) => { b.classList.add("pop"); setTimeout(() => b.classList.remove("pop"), 320); });
+  }
   toast(was ? "Removed from Liked Songs" : "Added to Liked Songs");
   if (likesLocal) return;
   const r = was ? await sb.from("likes").delete().eq("user_id", me.id).eq("track_id", id)
@@ -1009,7 +1043,8 @@ async function loadFriends() {
   }
   fr.loaded = true;
   paintFriends();
-  if (view === "lib" && !query) drawLists();
+  const box = $("frHome"); // update just the "Friends listening" row, not the whole page
+  if (box) { const html = friendsListening(true); if (box.innerHTML !== html) box.innerHTML = html; }
 }
 // "listening now" if they're playing and their app checked in within the last few minutes
 const isLive = (a) => a && a.playing && a.track_id && Date.now() - Date.parse(a.updated_at) < 5 * 60000;
@@ -1115,14 +1150,15 @@ setInterval(() => { if (me && !audio.paused) publishActivity(true); }, 120000);
 let frTick = 0; // every 20s while Friends is open, every minute otherwise
 setInterval(() => { frTick++; if (me && !document.hidden && (isOpen("friendsModal") || frTick % 3 === 0)) loadFriends(); }, 20000);
 // Home: friends playing something right now (or in the last half hour)
-function friendsListening() {
+function friendsListening(inner) {
   const recent = friendIds().map((u) => [u, fr.act.get(u)]).filter(([, a]) => a && a.track_id && Date.now() - Date.parse(a.updated_at) < 30 * 60000)
     .sort((x, y) => String(y[1].updated_at).localeCompare(String(x[1].updated_at))).slice(0, 6);
   const tiles = recent.map(([u, a]) => {
     const t = all.find((x) => String(x.id) === String(a.track_id)); if (!t) return "";
     return `<button class="rtile frtile" data-recent="t:${esc(t.id)}" title="${esc(frName(u))}: ${esc(t.title)}"><span class="rart"><span class="frav${isLive(a) ? " live" : ""}">${esc(frInitial(u))}</span></span><span class="rname">${esc(frName(u))}<br><span class="sub">${esc(t.title)}</span></span></button>`;
   }).join("");
-  return tiles ? `<h2 class="sech">Friends listening</h2><div class="recent">${tiles}</div>` : "";
+  const html = tiles ? `<h2 class="sech">Friends listening</h2><div class="recent">${tiles}</div>` : "";
+  return inner ? html : `<div id="frHome">${html}</div>`;
 }
 
 /* ---------- releases: albums, EPs and singles ----------
@@ -1478,7 +1514,6 @@ function drawLists() {
   if (!me) return;
   const box = $("lists");
   const tab = query ? "" : view.startsWith("pl:") ? "pls" : view;
-  document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("go", b.dataset.v === tab));
   const swipeHint = isTouch ? '<div class="sub hint">Swipe right on a song to queue it</div>' : "";
   const plays = (list) => list.reduce((n, t) => n + (t.plays || 0), 0);
   // " · 52 min" when we know how long the songs are
@@ -1684,6 +1719,7 @@ function go(v) {
   clearSearch(); view = v; mSearch = false;
   mtab = v === "lib" ? "home" : "library";
   paintTabs(); drawLists(); $("main").scrollTop = 0; scrollTo(0, 0);
+  anim($("lists"), [{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }], 200);
 }
 /* ---------- phones: bottom tabs (Home / Search / Your Library / Create) ---------- */
 let mtab = "home", mSearch = false, libFilter = "all";
@@ -1720,7 +1756,6 @@ $("csMake").onclick = async () => {
 $("csName").onkeydown = (e) => { if (e.key === "Enter") $("csMake").click(); };
 $("csUpload").addEventListener("click", () => setTimeout(() => closeOv("createSheet"), 0));
 $("csJam").onclick = () => { closeOv("createSheet"); openJam(); };
-$("tabs").onclick = (e) => { const b = e.target.closest("button"); if (b) go(b.dataset.v); };
 $("navLib").onclick = () => go("lib");
 $("side").addEventListener("click", (e) => { const b = e.target.closest("[data-spl]"); if (b) go("pl:" + b.dataset.spl); });
 $("sideMk").onclick = async () => { await createFromInput($("sideNew")); };
@@ -1745,7 +1780,6 @@ $("lists").onclick = (e) => {
     if (b.dataset.edit !== undefined) return openEdit(shown[+b.dataset.edit]);
     if (b.dataset.rm !== undefined) return removeFromPlaylist(+b.dataset.rm);
     if (b.dataset.dpl) { e.stopPropagation(); return deletePlaylist(b.dataset.dpl); }
-    if (b.id === "mk") return createFromInput($("plName"));
     if (b.dataset.back !== undefined) return go(prevView && prevView !== view ? prevView : "pls");
     if (b.dataset.playall !== undefined) { if (shown.length) pickPlay(shown[0], shown, true); return; }
     if (b.dataset.pledit) { e.stopPropagation(); return openPlEdit(lists.find((x) => x.id === b.dataset.pledit)); }
@@ -1775,7 +1809,6 @@ $("lists").onclick = (e) => {
   if (r) pickPlay(shown[+r.dataset.i], shown);
 };
 $("lists").onkeydown = (e) => {
-  if (e.target.id === "plName" && e.key === "Enter") return createFromInput(e.target);
   if (e.key !== "Enter" || !e.target.classList.contains("track")) return;
   if (e.target.dataset.golib) go("lib");
   else if (e.target.dataset.newpl) openCreate(true);
@@ -2078,7 +2111,9 @@ function setNow() {
   $("now").textContent = t ? t.title : "Nothing playing";
   $("now").classList.toggle("idle", !t);
   paintLikes();
-  $("player").classList.toggle("idle", !t); syncSizes();
+  const wasIdle = $("player").classList.contains("idle");
+  $("player").classList.toggle("idle", !t); // its size watcher updates the layout spacing
+  if (wasIdle && t && isPhoneLayout()) anim($("player"), [{ opacity: 0, transform: "translateY(16px)" }, { opacity: 1, transform: "none" }], 240);
   $("nowBy").textContent = t ? artistOf(t) : "";
   $("pAdd").classList.toggle("invis", !t);
   $("mini").setAttribute("role", t ? "button" : "group");
@@ -2308,7 +2343,7 @@ $("lbBody").onclick = (e) => { const r = e.target.closest("[data-lbplay]"); if (
 $("lbBody").onkeydown = (e) => { if (e.key === "Enter" && e.target.dataset.lbplay !== undefined) e.target.click(); };
 function paintPlays(t) {
   document.querySelectorAll("[data-plays]").forEach((el) => { if (el.dataset.plays === String(t.id)) el.textContent = "▶ " + (t.plays || 0); });
-  if (t.id === nowId) paintPlayCount(t);
+  if (t.id === nowId) renderLyrics();
 }
 
 $("play").onclick = () => {
@@ -2502,10 +2537,11 @@ function openFull() {
   $("fDown").focus({ preventScroll: true });
 }
 function closeFull(fromHistory) {
-  if (!fullOpen()) return;
-  $("full").classList.add("hide");
-  $("full").style.transform = "";
+  if (!fullOpen() || closeFull.busy) return;
+  const f = $("full"), from = f.style.transform || "translateY(0)";
+  closeFull.busy = true;
   document.body.classList.remove("full-open");
+  anim(f, [{ transform: from }, { transform: "translateY(100%)" }], 220).then(() => { f.classList.add("hide"); f.style.transform = ""; closeFull.busy = false; });
   if (!fromHistory && history.state && history.state.full) { try { history.back(); } catch (e) {} }
 }
 addEventListener("popstate", () => { if (fullOpen()) closeFull(true); });
@@ -2894,10 +2930,6 @@ $("qBody").onclick = (e) => {
 };
 
 /* ---------- now playing: lyrics modal (mobile) + side panel (desktop) ---------- */
-function paintPlayCount(t) {
-  const s = t ? "▶ " + (t.plays || 0) + " listen" + ((t.plays || 0) === 1 ? "" : "s") : "";
-  $("lyPlays").textContent = s;
-}
 function renderLyrics() {
   if (!me) return;
   const t = curTrack();
@@ -2905,14 +2937,6 @@ function renderLyrics() {
   const ab = t ? addedBy(t) : "";
   const lyr = t ? (t.lyrics && t.lyrics.trim() ? t.lyrics : "No lyrics yet.") : "Play a song to see its lyrics.";
   const canEdit = !!(t && t.user_id === me.id);
-  // modal
-  $("lyTitle").textContent = t ? t.title : "Nothing playing";
-  $("lyBy").textContent = by;
-  $("lyAdded").textContent = ab; $("lyAdded").classList.toggle("hide", !ab);
-  $("lyArt").classList.toggle("hide", !artUrl(t));
-  $("lyArt").innerHTML = artUrl(t) ? `<img src="${artUrl(t)}" alt="">` : "";
-  $("lyText").textContent = lyr;
-  $("lyEdit").classList.toggle("hide", !canEdit);
   // desktop Now Playing panel
   $("npCtx").textContent = jam.role === "guest" ? (jam.last?.host || "a friend") + "'s Jam" : (t ? ctxName : "Now playing");
   $("npArt").innerHTML = t ? (artUrl(t) ? `<span class="cover"><img src="${artUrl(t)}" alt="Album cover"></span>` : discHTML(t)) : discHTML({ id: "idle" });
@@ -2944,22 +2968,19 @@ function renderLyrics() {
       (ab ? `<div class="credit"><b>${esc(t.uploader || "someone")}</b><span>Added to Budsbox</span></div>` : "") +
       `<div class="credit"><b>\u25B6 ${t.plays || 0}</b><span>Listen${(t.plays || 0) === 1 ? "" : "s"}</span></div>`;
   paintNpNext();
-  paintPlayCount(t);
 }
 // desktop: show/hide the Now Playing + lyrics panel (like Spotify's lyrics button); phones: lyrics pop-up
 let npOff = false;
 try { npOff = localStorage.getItem("jukebox_np") === "off"; } catch (e) {}
 function paintNp() { document.body.classList.toggle("np-off", npOff); $("lyrBtn").classList.toggle("on", !npOff); }
 $("lyrBtn").onclick = () => {
-  if (isPhoneLayout()) { renderLyrics(); openOv("lyrModal"); return; }
+  if (isPhoneLayout()) { openFull(); return; }
   npOff = !npOff;
   try { localStorage.setItem("jukebox_np", npOff ? "off" : "on"); } catch (e) {}
   paintNp();
 };
 paintNp();
 $("pAdd").onclick = () => { const t = curTrack(); if (t) openPicker(t); };
-$("lyClose").onclick = () => closeOv("lyrModal");
-$("lyEdit").onclick = () => { const t = curTrack(); closeOv("lyrModal"); if (t) openEdit(t); };
 $("npEdit").onclick = () => { const t = curTrack(); if (t) openEdit(t); };
 $("npAdd").onclick = () => { const t = curTrack(); if (t) openPicker(t); };
 $("npClose").onclick = () => $("lyrBtn").click();

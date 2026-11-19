@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="budsbox-build" content="b16">
+<meta name="budsbox-build" content="b17">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -16,7 +16,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Nunito:wght@800;900&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<link rel="stylesheet" href="css/app.css?v=b16">
+<link rel="stylesheet" href="css/app.css?v=b17">
 </head>
 <body>
 <div id="bgLayer" aria-hidden="true"></div>
@@ -71,9 +71,7 @@
   <symbol id="ic-pen" viewBox="0 0 8 8" fill="currentColor"><rect x="6" y="0" width="2" height="1"/><rect x="5" y="1" width="3" height="1"/><rect x="4" y="2" width="3" height="1"/><rect x="3" y="3" width="3" height="1"/><rect x="2" y="4" width="3" height="1"/><rect x="1" y="5" width="3" height="1"/><rect x="0" y="6" width="3" height="1"/><rect x="0" y="7" width="1" height="1"/><rect x="6" y="2" width="1" height="1" fill="#0000"/></symbol>
   <symbol id="ic-x" viewBox="0 0 8 8" fill="currentColor"><rect x="1" y="1" width="1" height="1"/><rect x="6" y="1" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="4" y="3" width="1" height="1"/><rect x="4" y="4" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="5" y="5" width="1" height="1"/><rect x="2" y="5" width="1" height="1"/><rect x="6" y="6" width="1" height="1"/><rect x="1" y="6" width="1" height="1"/></symbol>
   <symbol id="ic-trophy" viewBox="0 0 8 8" fill="currentColor"><rect x="1" y="0" width="6" height="1"/><rect x="1" y="1" width="6" height="2"/><rect x="2" y="3" width="4" height="1"/><rect x="0" y="1" width="1" height="2"/><rect x="7" y="1" width="1" height="2"/><rect x="3" y="4" width="2" height="2"/><rect x="2" y="6" width="4" height="1"/><rect x="1" y="7" width="6" height="1"/></symbol>
-  <symbol id="ic-home" viewBox="0 0 8 8" fill="currentColor"><rect x="3" y="0" width="2" height="1"/><rect x="2" y="1" width="4" height="1"/><rect x="1" y="2" width="6" height="1"/><rect x="0" y="3" width="8" height="1"/><rect x="1" y="4" width="1" height="4"/><rect x="6" y="4" width="1" height="4"/><rect x="2" y="7" width="4" height="1"/><rect x="3" y="5" width="2" height="2"/></symbol>
   <symbol id="ic-search" viewBox="0 0 8 8" fill="currentColor"><rect x="1" y="0" width="4" height="1"/><rect x="0" y="1" width="1" height="4"/><rect x="5" y="1" width="1" height="4"/><rect x="1" y="5" width="4" height="1"/><rect x="5" y="5" width="1" height="1"/><rect x="6" y="6" width="1" height="1"/><rect x="7" y="7" width="1" height="1"/></symbol>
-  <symbol id="ic-lib" viewBox="0 0 8 8" fill="currentColor"><rect x="0" y="0" width="1" height="8"/><rect x="2" y="0" width="1" height="8"/><rect x="4" y="0" width="2" height="1"/><rect x="4" y="1" width="1" height="7"/><rect x="5" y="1" width="1" height="1"/><rect x="6" y="2" width="1" height="6"/><rect x="5" y="7" width="1" height="1"/></symbol>
   <symbol id="ic-sort" viewBox="0 0 8 8" fill="currentColor"><rect x="1" y="0" width="1" height="7"/><rect x="0" y="1" width="1" height="1"/><rect x="2" y="1" width="1" height="1"/><rect x="6" y="1" width="1" height="7"/><rect x="5" y="6" width="1" height="1"/><rect x="7" y="6" width="1" height="1"/></symbol>
   <symbol id="ic-note" viewBox="0 0 8 8" fill="currentColor"><rect x="3" y="0" width="4" height="1"/><rect x="3" y="1" width="1" height="5"/><rect x="6" y="1" width="1" height="4"/><rect x="1" y="5" width="3" height="2"/><rect x="4" y="4" width="3" height="2"/></symbol>
   <symbol id="tb-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 10.2 12 3.5l8.5 6.7V19.5a1 1 0 0 1-1 1H15v-6.2H9v6.2H4.5a1 1 0 0 1-1-1z"/></symbol>
@@ -205,10 +203,6 @@
 
   <main id="main">
     <input id="file" type="file" accept="audio/*" multiple>
-    <div class="row" id="tabs">
-      <button data-v="lib">Library</button>
-      <button data-v="pls">Playlists</button>
-    </div>
     <div class="msg" id="msg"></div>
     <div id="lists"></div>
   </main>
@@ -235,23 +229,6 @@
     <div>Queue</div>
     <div id="qBody"></div>
     <div class="row"><button id="qClear">Clear queue</button><button class="go" id="qClose">Done</button></div>
-  </div>
-</div>
-
-<!-- Lyrics (mobile; desktop shows the Now Playing panel instead) -->
-<div id="lyrModal" class="overlay hide">
-  <div class="panel">
-    <div class="row" style="flex-wrap:nowrap;gap:10px">
-      <span id="lyArt" class="cover big hide"></span>
-      <div class="grow" style="min-width:0">
-        <div id="lyTitle" style="color:var(--gold)"></div>
-        <div id="lyBy" class="sub"></div>
-        <div id="lyAdded" class="sub ab hide"></div>
-        <div id="lyPlays" class="sub"></div>
-      </div>
-    </div>
-    <div id="lyText"></div>
-    <div class="row"><button id="lyEdit" class="hide">Edit lyrics</button><button class="go" id="lyClose">Close</button></div>
   </div>
 </div>
 
@@ -576,7 +553,7 @@
     <button class="sheetopt" id="csPlaylist"><span class="soic"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-note"/></svg></span><span class="sotx"><b>Playlist</b><span class="sub">Build a playlist with songs</span></span></button>
     <div id="csNew" class="hide"><div class="row" style="flex-wrap:nowrap"><input id="csName" class="grow" type="text" maxlength="60" placeholder="Playlist name" aria-label="Playlist name" style="margin:0"><button class="go" id="csMake">Create</button></div></div>
     <label class="sheetopt btn" for="file" id="csUpload"><span class="soic"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-plus"/></svg></span><span class="sotx"><b>Upload music</b><span class="sub">Add songs from this device</span></span></label>
-    <button class="sheetopt" id="csRelease"><span class="soic"><svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true"><use href="#disc0"/></svg></span><span class="sotx"><b>Album or EP</b><span class="sub">Release your music as an album, EP or single</span></span></button>
+    <button class="sheetopt" id="csRelease"><span class="soic"><span class="disc dc0" aria-hidden="true"></span></span><span class="sotx"><b>Album or EP</b><span class="sub">Release your music as an album, EP or single</span></span></button>
     <button class="sheetopt" id="csJam"><span class="soic"><svg viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true"><use href="#ic-jam"/></svg></span><span class="sotx"><b>Jam</b><span class="sub">Listen together with friends</span></span></button>
   </div>
 </div>
@@ -585,7 +562,7 @@
 <div id="toast" class="hide" role="status" aria-live="polite"></div>
 <audio id="audio" preload="auto" playsinline></audio>
 
-<script src="js/app.js?v=b16"></script>
-<script>/* older copies look for this line to spot updates: const APP_BUILD = "b16"; */</script>
+<script src="js/app.js?v=b17"></script>
+<script>/* older copies look for this line to spot updates: const APP_BUILD = "b17"; */</script>
 </body>
 </html>

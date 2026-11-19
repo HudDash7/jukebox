@@ -55,7 +55,6 @@ input[type=file]{display:none}
 .track:hover{background:#ffffff18}
 .track.on{border-color:var(--gold);background:#9be35a1c}
 .track .t{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.track .sym{width:32px;text-align:center;flex:none}
 .meta{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .meta .t,.meta .by{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .by{font-size:8px;opacity:.8}
@@ -72,14 +71,9 @@ input[type=file]{display:none}
 .cover.big{width:64px;height:64px;border-width:3px}
 .plays{font-size:9px;opacity:.8;white-space:nowrap;flex:none}
 .panel h3{font-size:10px;color:var(--gold);margin:14px 0 4px;text-shadow:2px 2px 0 #000}
-.disc svg{width:32px;height:32px;display:block}
 @keyframes spin{to{transform:rotate(360deg)}}
-@media (prefers-reduced-motion:no-preference){.track.playing .disc svg,#art.playing .disc svg,#npArt.playing .disc svg{animation:spin 3s steps(8) infinite}}
+@media (prefers-reduced-motion:no-preference){.track.playing .disc,#art.playing .disc,#npArt.playing .disc{animation:spin 3s steps(8) infinite}}
 .empty{opacity:.7;padding:10px}
-#tabs{margin:10px 0 4px}
-#tabs button{flex:1}
-#plhead{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:18px 0 6px}
-#plhead h2{margin:0;flex:1;min-width:120px}
 
 /* leaderboard */
 .lbopen{display:inline-flex;align-items:center;gap:8px}
@@ -95,7 +89,7 @@ input[type=file]{display:none}
 .lbrow[data-lbplay]{cursor:pointer}.lbrow[data-lbplay]:hover{background:#ffffff12}
 .lbrank{flex:none;width:26px;text-align:center;font-size:11px;color:#b9c2b4}
 .lbrank.r1{color:#fcdb5b}.lbrank.r2{color:#d9d9d9}.lbrank.r3{color:#d08a4a}
-.lbrow .cover,.lbrow .disc,.lbrow .disc svg{width:36px;height:36px}
+.lbrow .cover,.lbrow .disc{width:36px;height:36px}
 .lbrow .meta .t{font-size:10px}
 .lbscore{flex:none;font-size:9px;color:var(--gold);white-space:nowrap}
 .lbnote{font-size:8px;line-height:1.8;color:#b9c2b4;margin:8px 2px 0}
@@ -116,20 +110,19 @@ input[type=file]{display:none}
 .pleRow{flex-wrap:nowrap;gap:14px;align-items:flex-start;margin-top:10px}
 .plecov{flex:none;width:120px;height:120px;border:4px solid #000;background:#000;cursor:pointer;overflow:hidden}
 .plecov img{width:100%;height:100%;object-fit:cover;display:block;image-rendering:auto}
-.plecov .disc,.plecov .disc svg,.plecov .cover{width:100%;height:100%;border:0}
+.plecov .disc,.plecov .cover{width:100%;height:100%;border:0}
 .pleRow input{margin-top:0}
 .sthumb{flex:none;width:28px;height:28px;display:block}
-.sthumb .cover,.sthumb .disc,.sthumb .disc svg{width:28px;height:28px;border-width:1px}
+.sthumb .cover,.sthumb .disc{width:28px;height:28px;border-width:1px}
 .sitem{padding:6px 8px}
 
 /* ---------- Spotify-style list view ---------- */
 .hero{position:relative;display:flex;align-items:flex-end;gap:20px;padding:22px 20px 18px;margin:0 0 0;background:linear-gradient(180deg,#4f8f2c 0%,#2f5a1c 60%,#22301d 100%);border:4px solid #000}
 .hart{flex:none;width:180px;height:180px;background:#000;border:4px solid #000;box-shadow:6px 6px 0 #0007}
-.hart .disc,.hart .disc svg,.hart .cover{width:100%;height:100%;border:0}
+.hart .disc,.hart .cover{width:100%;height:100%;border:0}
 .hmeta{min-width:0}
 .htitle{font-size:34px;line-height:1.2;margin:8px 0 10px;text-align:left;word-break:break-word;text-shadow:4px 4px 0 #000a}
 .hsub b{color:#fff}
-.cover.pix img{image-rendering:pixelated}
 .hback{position:absolute;top:10px;left:10px;transform:rotate(90deg)}
 .hbar{display:flex;align-items:center;gap:12px;padding:14px 4px 8px;flex-wrap:wrap}
 .bigplay{padding:16px;line-height:0}
@@ -141,7 +134,6 @@ input[type=file]{display:none}
 .secbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:18px 0 8px}
 .secbar .sech{margin:0;flex:1}
 .sech{font-size:12px;margin:20px 0 8px}
-.newpl{flex-wrap:nowrap;margin-bottom:8px}.newpl input{margin:0}
 /* rows: flat, compact, highlight on hover; actions appear on hover (always on touch) */
 .lhead,.trow{display:grid;grid-template-columns:32px 40px minmax(0,1fr) 120px 64px 48px 96px;align-items:center;column-gap:12px}
 .tdur{font-size:9px;color:#b9c2b4;text-align:right;white-space:nowrap}
@@ -150,7 +142,7 @@ input[type=file]{display:none}
 .trow:hover,.trow:focus-within{background:#ffffff10}
 .track.trow.on{background:#9be35a17;border:0}
 .trow.on .t{color:var(--gold)}
-.trow .cover,.trow .disc,.trow .disc svg{width:40px;height:40px}
+.trow .cover,.trow .disc{width:40px;height:40px}
 .tn{text-align:center;font-size:10px;color:#b9c2b4}
 .tn .eq{display:none;color:var(--gold)}
 .tn .eq svg{width:12px;height:12px;display:inline-block;vertical-align:middle}
@@ -176,7 +168,7 @@ input[type=file]{display:none}
   .trow{grid-template-columns:44px minmax(0,1fr) auto auto;column-gap:8px;padding:6px 4px}
   .trow .tn,.trow .tdate,.trow .tdur{display:none}
   .trow .plays{font-size:9px;color:#b9c2b4;white-space:nowrap}
-  .trow .cover,.trow .disc,.trow .disc svg{width:44px;height:44px}
+  .trow .cover,.trow .disc{width:44px;height:44px}
   .sortw .sub{display:none}
 }
 /* ---------- sidebar + now playing panel (desktop only) ---------- */
@@ -190,7 +182,7 @@ input[type=file]{display:none}
 .nphead{display:flex;align-items:center;gap:8px}
 #npCtx{flex:1;min-width:0;font-size:11px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #npArt{position:relative;width:100%;aspect-ratio:1;border:4px solid #000;background:#000;flex:none}
-#npArt .disc,#npArt .disc svg,#npArt .cover{width:100%;height:100%;border:0}
+#npArt .disc,#npArt .cover{width:100%;height:100%;border:0}
 .npcap{display:flex;align-items:center;gap:8px;margin-top:-2px}
 #npTitle{color:#fff;font-size:15px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:2px 2px 0 #000}
 #npBy{font-size:9px;color:#b9c2b4;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -213,7 +205,7 @@ input[type=file]{display:none}
 .credit span{font-size:8px;color:#b9c2b4}
 .nextrow{display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px;margin:0 -4px}
 .nextrow:hover{background:#ffffff10}
-.nextrow .cover,.nextrow .disc,.nextrow .disc svg{width:40px;height:40px}
+.nextrow .cover,.nextrow .disc{width:40px;height:40px}
 .nextrow .meta .t{font-size:10px}
 /* flat row/icon buttons (Spotify-style): circled plus, pencil, remove */
 .rbtn{background:transparent;border:0;outline:0;margin:0;padding:6px;line-height:0;color:#b9c2b4;text-shadow:none}
@@ -226,7 +218,6 @@ input[type=file]{display:none}
 
 .overlay{position:fixed;inset:0;background:#000b;display:block;overflow:auto;padding:8vh 12px calc(env(safe-area-inset-bottom) + var(--ph) + var(--tbh, 0px) + 20px);z-index:10}
 .overlay .panel{width:100%;max-width:460px;margin:0 auto}
-#lyText{white-space:pre-wrap;word-break:break-word;font:9px/2 "Press Start 2P",ui-monospace,monospace;background:#000a;padding:10px;margin:8px 0;max-height:48vh;overflow:auto;color:#fff}
 
 /* ---------- player bar ---------- */
 #player{position:fixed;left:0;right:0;bottom:0;z-index:5;background:var(--dirt);border-top:8px solid var(--grass);box-shadow:inset 0 4px 0 var(--dirt-d);padding:10px 12px calc(env(safe-area-inset-bottom) + 10px)}
@@ -240,7 +231,7 @@ input[type=file]{display:none}
 .nowrow{display:flex;align-items:center;gap:10px;margin-bottom:6px}
 .nowcol{flex:1;min-width:0}
 #art{flex:none;width:40px;height:40px}
-#art .disc,#art .disc svg,#art .cover{width:40px;height:40px}
+#art .disc,#art .cover{width:40px;height:40px}
 
 /* volume (desktop; phones use their hardware buttons) */
 #vol{display:none;align-items:center;gap:4px}
@@ -304,7 +295,7 @@ input[type=file]{display:none}
   #now{margin:0}
   #nowBy{font-size:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #art{width:42px;height:42px}
-  #art .disc,#art .disc svg,#art .cover{width:42px;height:42px}
+  #art .disc,#art .cover{width:42px;height:42px}
   #now{color:#fff;font-size:10px}
 }
 #nowBy:empty{display:none}
@@ -333,7 +324,7 @@ input[type=file]{display:none}
 .newtile{display:flex;align-items:center;justify-content:center;background:#2a2e2a;width:100%;height:100%;color:#dfe7da}
 .newtile svg{width:40%;height:40%}
 .prow .lcov{flex:none;width:40px;height:40px;display:block;border-radius:var(--r-sm, 4px);overflow:hidden}
-.prow .lcov .cover,.prow .lcov .disc,.prow .lcov .disc svg{width:100%!important;height:100%!important;border:0;border-radius:0}
+.prow .lcov .cover,.prow .lcov .disc{width:100%!important;height:100%!important;border:0;border-radius:0}
 .sempty{padding:18px 4px 4px;text-align:center}
 #createSheet{padding:0;display:flex;align-items:flex-end;justify-content:center}
 #createSheet.hide{display:none!important}
@@ -362,10 +353,10 @@ input[type=file]{display:none}
   .avatar{display:block;font-size:14px;line-height:1;color:#fff;text-shadow:2px 2px 0 #0008}
   #searchBox{display:none;flex-basis:100%;order:9;margin-top:6px}
   body.m-search #searchBox{display:block}
-  #tabs,.deskonly{display:none!important}
+  .deskonly{display:none!important}
   #tabbar{display:flex}
   .prow{grid-template-columns:60px minmax(0,1fr) auto;min-height:72px;padding:6px 2px}
-  .prow .lcov,.prow > .cover,.prow > .disc,.prow > .disc svg{width:60px;height:60px}
+  .prow .lcov,.prow > .cover,.prow > .disc{width:60px;height:60px}
   .prow .tact{display:none}
   .prow .t{font-size:12px}
 }
@@ -383,7 +374,7 @@ body.full-open{overflow:hidden}
 #fFrom{font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fbig{padding:8px}.fbig svg{width:20px;height:20px}
 #fArt{width:100%;max-width:min(420px,48vh);aspect-ratio:1;margin:8px auto 18px;border:4px solid #000;box-shadow:8px 8px 0 #0007;background:#000}
-#fArt .disc,#fArt .disc svg,#fArt .cover{width:100%;height:100%;border:0}
+#fArt .disc,#fArt .cover{width:100%;height:100%;border:0}
 .ftitle{display:flex;align-items:center;gap:10px;max-width:420px;margin:0 auto}
 #fTitle{font-size:15px;line-height:1.5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #fBy{font-size:10px;opacity:.85;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -403,14 +394,6 @@ body.full-open{overflow:hidden}
 .fhint{text-align:center;margin-top:10px}
 @media (min-width:1024px){#full{display:none!important}}
 
-/* Netlify's free plan pins a "Powered by Netlify" badge to the bottom-right corner.
-   Keep that corner empty so it never covers controls (class added only on *.netlify.app). */
-.nl-badge #player{padding-bottom:calc(env(safe-area-inset-bottom) + 58px)}
-.nl-badge #full{padding-bottom:calc(env(safe-area-inset-bottom) + 84px)}
-@media (min-width:1024px){
-  .nl-badge #player{padding-bottom:10px}
-  .nl-badge .pright{padding-right:230px}
-}
 @media (min-width:1024px) and (max-width:1279px){#volR{width:70px}}
 
 /* ---------- desktop: Spotify-style 3 columns ---------- */
@@ -428,13 +411,12 @@ body.full-open{overflow:hidden}
   #main{min-height:0;overflow:auto;padding-right:4px;order:2}
   #np{order:3}
   #main h2:first-child{margin-top:4px}
-  #tabs{display:none}
   /* Spotify-style bottom bar: song | controls + progress | lyrics, queue, jam, volume */
   #player{padding:10px 16px;background:#121312;border-top:4px solid var(--grass);box-shadow:none}
   #player .in{max-width:none;display:grid;grid-template-columns:minmax(170px,1fr) minmax(240px,560px) minmax(max-content,1fr);align-items:center;gap:16px}
   .pleft{display:flex;align-items:center;gap:10px;min-width:0}
   #mini{margin:0;min-width:0}
-  #art,#art .disc,#art .disc svg,#art .cover{width:56px;height:56px}
+  #art,#art .disc,#art .cover{width:56px;height:56px}
   #now{color:#fff;font-size:11px}
   #nowBy{font-size:9px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .pcenter{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
@@ -470,10 +452,10 @@ body.full-open{overflow:hidden}
 
 /* ---------- softer corners ---------- */
 :root{--r-sm:4px;--r:8px;--r-lg:12px}
-.panel,.menu,.hero,#np,.npcard,.fcard,#lbBody,#lyText,.jamcode,#toast,.lbpanel{border-radius:var(--r-lg)}
+.panel,.menu,.hero,#np,.npcard,.fcard,#lbBody,.jamcode,#toast,.lbpanel{border-radius:var(--r-lg)}
 button,.btn,input[type=text],input[type=email],input[type=password],input[type=search],textarea,#sortSel{border-radius:var(--r)}
 .track,.trow,.lbrow,.nextrow,.sitem,.lhead{border-radius:var(--r)}
-.cover,.hart,#npArt,#fArt,.plecov,#edPrev,#lyArt{border-radius:var(--r);overflow:hidden}
+.cover,.hart,#npArt,#fArt,.plecov,#edPrev{border-radius:var(--r);overflow:hidden}
 .hart .cover,#npArt .cover,#fArt .cover,.plecov .cover{border-radius:0}
 .hart .hedit{border-radius:0}
 .trow .cover,.nextrow .cover,.lbrow .cover,.sthumb .cover,#art .cover{border-radius:var(--r-sm)}
@@ -525,7 +507,7 @@ button,.btn,input[type=text],input[type=email],input[type=password],input[type=s
 .rtile:focus-visible{outline:3px solid var(--gold)}
 .rart{flex:none;width:52px;height:52px;display:block;overflow:hidden}
 .rart.round{border-radius:50%!important;width:44px;height:44px;margin-left:4px}
-.rart .cover,.rart .disc,.rart .disc svg{width:100%!important;height:100%!important;border:0;border-radius:0}
+.rart .cover,.rart .disc{width:100%!important;height:100%!important;border:0;border-radius:0}
 .rname{font-size:9px;line-height:1.5;color:#fff;padding-right:8px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 @media (max-width:1023px){.recent{grid-template-columns:1fr 1fr}}
 
@@ -547,11 +529,11 @@ button,.btn,input[type=text],input[type=email],input[type=password],input[type=s
 .wsmall{font-size:9px;line-height:1.9;opacity:.9}
 .wbig{font-size:20px;line-height:1.4;margin:8px 0;word-break:break-word}
 .wrow{display:flex;align-items:center;gap:10px;padding:6px 0}
-.wrow .cover,.wrow .disc,.wrow .disc svg{width:40px;height:40px}
+.wrow .cover,.wrow .disc{width:40px;height:40px}
 .wrow .meta .t{font-size:10px}
 .wn{width:18px;font-size:12px;color:var(--gold)}
 .wart{width:110px;height:110px;margin:10px auto 0;border-radius:50%;overflow:hidden;border:3px solid #000}
-.wart .cover,.wart .disc,.wart .disc svg{width:100%!important;height:100%!important;border:0}
+.wart .cover,.wart .disc{width:100%!important;height:100%!important;border:0}
 
 /* downloads + offline */
 .dlbtn.on{color:var(--gold)}
@@ -646,7 +628,7 @@ html.bg-photo .lhead{background:#000c;-webkit-backdrop-filter:blur(8px);backdrop
 .relcard:active{transform:none}
 .relcard:focus-visible{outline:3px solid var(--gold)}
 .relart{display:block;width:100%;aspect-ratio:1;border-radius:6px;overflow:hidden;box-shadow:0 6px 16px #0008;background:#111}
-.relart .cover,.relart .disc,.relart .disc svg{width:100%!important;height:100%!important;border:0;border-radius:0}
+.relart .cover,.relart .disc{width:100%!important;height:100%!important;border:0;border-radius:0}
 .reltitle{font-size:10px;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .relcard .sub{font-size:8px}
 .reldate{margin:12px 4px 18px}
@@ -677,3 +659,21 @@ html.bg-photo .lhead{background:#000c;-webkit-backdrop-filter:blur(8px);backdrop
   .ptitle.isbrand .wordmark{font-size:22px}
 }
 @media (max-width:1023px){.brand{display:none!important}}
+
+/* pixel discs are small images now */
+.disc{background:center/100% 100% no-repeat;image-rendering:pixelated}
+.soic .disc{width:24px;height:24px}
+
+/* long lists: the browser skips rendering rows that are off-screen */
+#lists .trow{content-visibility:auto;contain-intrinsic-size:auto 56px}
+@media (max-width:1023px){#lists .trow{contain-intrinsic-size:auto 60px}}
+#lists .trow.settle,#lists .trow.armed,#lists .trow.dragging,#lists .trow[style*="translate"]{content-visibility:visible}
+
+/* ---------- smooth feedback ---------- */
+@media (prefers-reduced-motion:no-preference){
+  .track,.rtile,.relcard,.sitem,.chip,.pbtn,.rbtn,.sheetopt,.nextrow,.lbrow{transition:background-color .15s ease,color .15s ease}
+  .likebtn.pop svg,.rbtn.lk.pop svg{animation:likePop .28s cubic-bezier(.2,.8,.2,1)}
+}
+@keyframes likePop{0%{transform:scale(.6)}60%{transform:scale(1.18)}100%{transform:scale(1)}}
+.overlay.closing{pointer-events:none}
+.hback{z-index:3}
