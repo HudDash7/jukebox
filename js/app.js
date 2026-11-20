@@ -2105,6 +2105,10 @@ $("pickClose").onclick = closePicker;
 
 /* ---------- player ---------- */
 function urlFor(t) { return sb.storage.from("music").getPublicUrl(t.path).data.publicUrl; }
+// what the player loads: streamed songs go straight to the network so the phone's own media loader
+// handles them (an iPhone puts the service worker to sleep in the background, and songs routed
+// through it stop loading after a few tracks). Only downloaded songs are answered from the device.
+function playUrl(t) { const u = urlFor(t); return isDownloaded(t) ? u + (u.includes("?") ? "&" : "?") + "bbx=offline" : u; }
 
 function setNow() {
   const t = curTrack();
@@ -2137,7 +2141,8 @@ function playTrack(t, q, viaQueue) {
   if (!viaQueue) ctxId = t.id;
   nowId = t.id;
   newSession();
-  audio.src = urlFor(t);
+  loadTries = 0; lastPos = 0;
+  audio.src = playUrl(t);
   audio.play().catch(() => {});
   setNow(); updateQBtn(); setMeta(t);
 }
@@ -2399,7 +2404,7 @@ function resumePlay() {
   const t = curTrack();
   // Safari sometimes drops the track while paused in the background: load it again at the same spot
   if (t && (audio.error || audio.readyState === 0 || !audio.getAttribute("src") || audio.currentSrc.startsWith("data:"))) {
-    audio.src = urlFor(t);
+    audio.src = playUrl(t);
     audio.addEventListener("loadedmetadata", () => { try { audio.currentTime = Math.min(lastPos, audio.duration || lastPos); } catch (e) {} }, { once: true });
   }
   audio.play().catch(() => setTimeout(() => { if (audio.paused) audio.play().catch(() => {}); }, 300));
@@ -2442,6 +2447,16 @@ audio.onended = () => {
   }
   if (!advance() && "mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
 };
+// a song that fails to load (patchy signal, phone waking up): try again, then move on,
+// so the music doesn't just stop in your pocket
+let loadTries = 0;
+audio.onerror = () => {
+  if (nowId == null || !audio.error || audio.currentSrc.startsWith("data:") || jam.role === "guest") return;
+  if (loadTries++ < 2) { setTimeout(() => { if (audio.error) resumePlay(); }, 1500 * loadTries); return; }
+  loadTries = 0; toast("Couldn't load that song, skipping");
+  if (!advance() && "mediaSession" in navigator) navigator.mediaSession.playbackState = "paused";
+};
+audio.onplaying = () => { loadTries = 0; };
 audio.onloadedmetadata = () => { syncPos(); const t = curTrack(); if (t && isFinite(audio.duration) && !audio.currentSrc.startsWith("data:")) rememberDur(t, audio.duration); };
 audio.onseeked = () => { lastT = audio.currentTime; syncPos(); jamPush(); };
 
@@ -2770,7 +2785,7 @@ function jamApply(s) {
   if (!t) { if (!audio.paused) pauseByUser(); if (nowId != null) { nowId = null; setNow(); } if (changed) { updateQBtn(); if (isOpen("qModal")) renderQueue(); } return; }
   if (nowId !== t.id) {
     nowId = t.id; newSession();
-    audio.src = urlFor(t);
+    audio.src = playUrl(t);
     audio.addEventListener("loadedmetadata", () => {
       if (jam.role !== "guest" || nowId !== t.id) return;
       audio.currentTime = Math.min(jamWant(), audio.duration || jamWant());
